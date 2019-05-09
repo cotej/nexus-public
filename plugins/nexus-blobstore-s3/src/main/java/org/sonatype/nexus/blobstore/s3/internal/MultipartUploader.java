@@ -15,7 +15,6 @@ package org.sonatype.nexus.blobstore.s3.internal;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -43,15 +42,19 @@ import static com.google.common.base.Preconditions.checkState;
  */
 @Named("multipart-uploader")
 public class MultipartUploader
-    extends ComponentSupport
-    implements S3Uploader
+        extends ComponentSupport
+        implements S3Uploader
 {
 
   private final int chunkSize;
+  private final int concurrentChunks;
 
   @Inject
-  public MultipartUploader(@Named("${nexus.s3.multipartupload.chunksize:-5242880}") final int chunkSize) {
+  public MultipartUploader(
+      @Named("${nexus.s3.multipartupload.chunksize:-5242880}") final int chunkSize,
+      @Named("${nexus.s3.multipartupload.concurrency:-4}") final int concurrentChunks) {
     this.chunkSize = chunkSize;
+    this.concurrentChunks = concurrentChunks;
   }
 
   @Override
@@ -71,7 +74,7 @@ public class MultipartUploader
   }
 
   private void uploadSinglePart(final AmazonS3 s3, final String bucket, final String key, final InputStream contents)
-      throws IOException {
+          throws IOException {
     log.debug("Starting upload to key {} in bucket {} of {} bytes", key, bucket, contents.available());
     ObjectMetadata metadata = new ObjectMetadata();
     metadata.setContentLength(contents.available());
@@ -83,7 +86,7 @@ public class MultipartUploader
                                final String key,
                                final InputStream firstChunk,
                                final InputStream restOfContents)
-      throws IOException {
+          throws IOException {
     checkState(firstChunk.available() > 0);
     String uploadId = null;
     try {
@@ -92,8 +95,8 @@ public class MultipartUploader
 
       log.debug("Starting multipart upload {} to key {} in bucket {}", uploadId, key, bucket);
 
-      List<UploadPartResult> results = new ArrayList<>();
-      for (int partNumber = 1; ; partNumber++) {
+      MultipartUploadContext context = new MultipartUploadContext(s3, uploadId, concurrentChunks);
+      for (int partNumber = 1; !context.hasError(); partNumber++) {
         InputStream chunk = partNumber == 1 ? firstChunk : readChunk(restOfContents);
         if (chunk.available() == 0) {
           break;
@@ -101,20 +104,21 @@ public class MultipartUploader
         else {
           log.debug("Uploading chunk {} for {} of {} bytes", partNumber, uploadId, chunk.available());
           UploadPartRequest part = new UploadPartRequest()
+                  .withBucketName(bucket)
+                  .withKey(key)
+                  .withUploadId(uploadId)
+                  .withPartNumber(partNumber)
+                  .withInputStream(chunk)
+                  .withPartSize(chunk.available());
+          context.uploadPartAsync(part);
+        }
+      }
+      List<UploadPartResult> results = context.getUploadResults();
+      CompleteMultipartUploadRequest compRequest = new CompleteMultipartUploadRequest()
               .withBucketName(bucket)
               .withKey(key)
               .withUploadId(uploadId)
-              .withPartNumber(partNumber)
-              .withInputStream(chunk)
-              .withPartSize(chunk.available());
-          results.add(s3.uploadPart(part));
-        }
-      }
-      CompleteMultipartUploadRequest compRequest = new CompleteMultipartUploadRequest()
-          .withBucketName(bucket)
-          .withKey(key)
-          .withUploadId(uploadId)
-          .withPartETags(results);
+              .withPartETags(results);
       s3.completeMultipartUpload(compRequest);
       log.debug("Upload {} complete", uploadId);
       uploadId = null;
@@ -126,7 +130,7 @@ public class MultipartUploader
         }
         catch(Exception e) {
           log.error("Error aborting S3 multipart upload to bucket {} with key {}", bucket, key,
-              log.isDebugEnabled() ? e : null);
+                  log.isDebugEnabled() ? e : null);
         }
       }
     }
