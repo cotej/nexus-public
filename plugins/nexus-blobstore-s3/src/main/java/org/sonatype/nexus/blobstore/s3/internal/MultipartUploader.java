@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -92,8 +94,9 @@ public class MultipartUploader
 
       log.debug("Starting multipart upload {} to key {} in bucket {}", uploadId, key, bucket);
 
-      List<UploadPartResult> results = new ArrayList<>();
-      for (int partNumber = 1; ; partNumber++) {
+      List<CompletableFuture<UploadPartResult>> uploads = new ArrayList<>();
+      AtomicReference<Exception> error = new AtomicReference<>();
+      for (int partNumber = 1; error.get() == null; partNumber++) {
         InputStream chunk = partNumber == 1 ? firstChunk : readChunk(restOfContents);
         if (chunk.available() == 0) {
           break;
@@ -107,9 +110,29 @@ public class MultipartUploader
               .withPartNumber(partNumber)
               .withInputStream(chunk)
               .withPartSize(chunk.available());
-          results.add(s3.uploadPart(part));
+          uploads.add(CompletableFuture.supplyAsync(() -> {
+            if (error.get() == null) {
+              try {
+                return s3.uploadPart(part);
+              } catch (Exception e) {
+                error.set(e);
+              }
+            }
+            return null;
+          }));
         }
       }
+
+      // Await and collect the upload results
+      List<UploadPartResult> results = new ArrayList<>();
+      for (CompletableFuture<UploadPartResult> upload : uploads) {
+        results.add(upload.join());
+      }
+      // Check error state after allowing all queued uploads to finish
+      if (error.get() != null) {
+        throw new IOException("Upload failed", error.get());
+      }
+
       CompleteMultipartUploadRequest compRequest = new CompleteMultipartUploadRequest()
           .withBucketName(bucket)
           .withKey(key)
