@@ -22,9 +22,9 @@ import javax.inject.Named;
 
 import org.sonatype.nexus.common.entity.EntityId;
 import org.sonatype.nexus.repository.maven.MavenHostedFacet;
+import org.sonatype.nexus.repository.maven.internal.MavenComponentMaintenanceFacet;
 import org.sonatype.nexus.repository.storage.Component;
 import org.sonatype.nexus.repository.storage.ComponentMaintenance;
-import org.sonatype.nexus.repository.storage.DefaultComponentMaintenanceImpl;
 import org.sonatype.nexus.repository.storage.StorageFacet;
 import org.sonatype.nexus.repository.storage.StorageTx;
 import org.sonatype.nexus.transaction.Transactional;
@@ -42,7 +42,7 @@ import static org.sonatype.nexus.repository.maven.internal.Attributes.P_GROUP_ID
  */
 @Named
 public class MavenHostedComponentMaintenanceFacet
-    extends DefaultComponentMaintenanceImpl
+    extends MavenComponentMaintenanceFacet
 {
   @Override
   public Set<String> deleteComponent(final EntityId componentId, final boolean deleteBlobs) {
@@ -59,21 +59,19 @@ public class MavenHostedComponentMaintenanceFacet
   }
 
   @Override
-  protected long doBatchDelete(final List<EntityId> entityIds, final BooleanSupplier cancelledCheck) {
-    long count = 0L;
-
+  protected DeletionProgress doBatchDelete(final List<EntityId> entityIds, final BooleanSupplier cancelledCheck) {
     try {
       List<String[]> gavs = collectGavs(entityIds);
 
-      count += deleteComponentBatch(entityIds, cancelledCheck);
+      DeletionProgress batchProgress = deleteComponentBatch(entityIds, cancelledCheck);
 
       getRepository().facet(MavenHostedFacet.class).deleteMetadata(gavs);
+      return batchProgress;
     }
     catch (Exception ex) {
       log.debug("Error encountered attempting to delete components for repository {}.", getRepository().getName(), ex);
     }
-
-    return count;
+    return new DeletionProgress();
   }
 
   @Transactional

@@ -45,7 +45,7 @@ Ext.define('NX.coreui.view.component.AssetContainer', {
           {
             xtype: 'nx-button',
             text: NX.I18n.get('AssetInfo_Delete_Button'),
-            glyph: 'xf056@FontAwesome' /* fa-minus-circle */,
+            glyph: 'xf1f8@FontAwesome' /* fa-trash */,
             action: 'deleteAsset',
             hidden: true
           }
@@ -111,6 +111,37 @@ Ext.define('NX.coreui.view.component.AssetContainer', {
     }
     tabs.add(item);
     tabs.setActiveTab(0);
+  },
+
+  /**
+   * Show a tab
+   * @public
+   */
+  showTab: function (itemId) {
+    var tabs = this.down('#assetInfoTabs'),
+        existingTab = tabs.child('#' + itemId);
+
+    if (existingTab) {
+      existingTab.tab.show();
+    }
+  },
+
+  /**
+   * Hide a tab
+   * @public
+   */
+  hideTab: function (itemId) {
+    var tabs = this.down('#assetInfoTabs'),
+        existingTab = tabs.child('#' + itemId),
+        wasActive = tabs.getActiveTab() === existingTab;
+
+    if (existingTab) {
+      existingTab.tab.hide();
+
+      if (wasActive) {
+        tabs.setActiveTab(0);
+      }
+    }
   }
 
 });

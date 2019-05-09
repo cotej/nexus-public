@@ -22,9 +22,9 @@ import org.sonatype.nexus.repository.cache.CacheControllerHolder.CacheType;
  *
  * @since 3.1
  */
-enum AssetKind
+public enum AssetKind
 {
-
+  ROOT_INDEX(CacheControllerHolder.METADATA),
   INDEX(CacheControllerHolder.METADATA),
   PACKAGE(CacheControllerHolder.CONTENT),
   SEARCH(CacheControllerHolder.METADATA);

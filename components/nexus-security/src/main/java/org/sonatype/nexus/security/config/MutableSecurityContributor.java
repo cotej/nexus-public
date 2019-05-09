@@ -102,4 +102,13 @@ public class MutableSecurityContributor
 
     eventManager.post(new SecurityContributionChangedEvent());
   }
+
+  /**
+   * @since 3.16
+   */
+  protected void maybeAddPrivilege(final SecurityConfiguration model, final CPrivilege privilege) {
+    if (model.getPrivilege(privilege.getId()) == null) {
+      model.addPrivilege(privilege);
+    }
+  }
 }

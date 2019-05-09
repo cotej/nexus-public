@@ -43,27 +43,9 @@ Ext.define('NX.coreui.app.PluginConfig', {
       }
     },
     {
-      id: 'NX.coreui.controller.AnalyticsSettings',
-      active: function () {
-        return NX.app.Application.bundleActive('com.sonatype.nexus.plugins.nexus-analytics-plugin');
-      }
-    },
-    {
-      id: 'NX.coreui.controller.AnalyticsEvents',
-      active: function () {
-        return NX.app.Application.bundleActive('com.sonatype.nexus.plugins.nexus-analytics-plugin');
-      }
-    },
-    {
       id: 'NX.coreui.controller.AnonymousSettings',
       active: function () {
         return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin');
-      }
-    },
-    {
-      id: 'NX.coreui.audit.AuditController',
-      active: function () {
-        return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-audit-plugin');
       }
     },
     {
@@ -74,14 +56,15 @@ Ext.define('NX.coreui.app.PluginConfig', {
     },
     {
       id: 'NX.coreui.controller.Capabilities',
-      active: function () {
+      active: function() {
         return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin');
       }
     },
     {
       id: 'NX.coreui.controller.ComponentAssetTree',
       active: function () {
-        return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin');
+        return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin') &&
+            NX.State.getValue('browseableformats').length > 0;
       }
     },
     'NX.coreui.controller.FeatureGroups',
@@ -210,12 +193,6 @@ Ext.define('NX.coreui.app.PluginConfig', {
     },
     {
       id: 'NX.coreui.controller.Privileges',
-      active: function () {
-        return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin');
-      }
-    },
-    {
-      id: 'NX.coreui.controller.DatabaseWarnings',
       active: function () {
         return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin');
       }
@@ -360,7 +337,7 @@ Ext.define('NX.coreui.app.PluginConfig', {
       }
     },
     {
-      id: 'NX.coreui.controller.FileDescriptorWarnings',
+      id: 'NX.coreui.controller.HealthCheckWarnings',
       active: function () {
         return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin');
       }
@@ -369,6 +346,13 @@ Ext.define('NX.coreui.app.PluginConfig', {
       id: 'NX.coreui.controller.CleanupPolicies',
       active: function () {
         return NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin');
+      }
+    },
+    {
+      id: 'NX.coreui.controller.RoutingRules',
+      active: function() {
+        return NX.State.getValue('routingRules') &&
+            NX.app.Application.bundleActive('org.sonatype.nexus.plugins.nexus-coreui-plugin');
       }
     }
   ]

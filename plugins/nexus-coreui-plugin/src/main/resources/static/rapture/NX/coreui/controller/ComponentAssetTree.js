@@ -21,6 +21,7 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
   extend: 'NX.controller.Drilldown',
   requires: [
     'NX.Bookmarks',
+    'NX.Dialogs',
     'NX.Messages',
     'NX.Permissions',
     'NX.I18n',
@@ -50,25 +51,30 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
     'browse.ComponentAssetTreeFeature',
     'browse.ComponentAssetTree',
     'component.ComponentInfo',
-    'component.ComponentAssetInfo'
+    'component.ComponentAssetInfo',
+    'component.ComponentFolderInfo'
   ],
 
   refs: [
     {ref: 'feature', selector: 'nx-coreui-componentassettreefeature'},
     {ref: 'repositoryList', selector: 'nx-coreui-componentassettreefeature nx-coreui-browse-repository-list'},
     {ref: 'componentAssetTree', selector: 'nx-coreui-componentassettreefeature nx-coreui-component-asset-tree'},
-    {ref: 'componentAssetTreePanel', selector: 'nx-coreui-componentassettreefeature treepanel'},
+    {ref: 'componentAssetTreePanel', selector: 'nx-coreui-componentassettreefeature nx-coreui-component-asset-tree treepanel'},
     {ref: 'treeFilterBox', selector: 'nx-coreui-componentassettreefeature nx-searchbox'},
     {ref: 'advancedSearchLink', selector: 'nx-coreui-componentassettreefeature #nx-coreui-component-asset-tree-advanced-search'},
     {ref: 'uploadButton', selector: 'nx-coreui-componentassettreefeature button[action=upload]'},
     {ref: 'htmlViewLink', selector: 'nx-coreui-componentassettreefeature #nx-coreui-component-asset-tree-html-view'},
     {ref: 'componentInfo', selector: 'nx-coreui-component-componentinfo'},
     {ref: 'componentAssetInfo', selector: 'nx-coreui-component-componentassetinfo'},
+    {ref: 'componentFolderInfo', selector: 'nx-coreui-component-componentfolderinfo'},
     {ref: 'deleteComponentButton', selector: 'nx-coreui-component-componentinfo button[action=deleteComponent]'},
     {ref: 'deleteAssetButton', selector: 'nx-coreui-component-componentassetinfo button[action=deleteAsset]'},
+    {ref: 'deleteAssetFolderButton', selector: 'nx-coreui-component-componentassetinfo button[action=deleteFolder]'},
+    {ref: 'deleteFolderButton', selector: 'nx-coreui-component-componentfolderinfo button[action=deleteFolder]'},
     {ref: 'analyzeApplicationButton', selector: 'nx-coreui-component-componentinfo button[action=analyzeApplication]'},
     {ref: 'analyzeApplicationWindow', selector: 'nx-coreui-component-analyze-window'},
-    {ref: 'rootContainer', selector: 'nx-main'}
+    {ref: 'rootContainer', selector: 'nx-main'},
+    {ref: 'treeWarning', selector: 'nx-coreui-componentassettreefeature nx-coreui-component-asset-tree #warning'}
   ],
 
   icons: {
@@ -135,6 +141,12 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
         },
         'nx-coreui-component-componentassetinfo button[action=deleteAsset]': {
           click: me.deleteAsset
+        },
+        'nx-coreui-component-componentassetinfo button[action=deleteFolder]': {
+          click: me.deleteAssetFolder
+        },
+        'nx-coreui-component-componentfolderinfo button[action=deleteFolder]': {
+          click: me.deleteFolder
         },
         'nx-coreui-component-analyze-window button[action=analyze]': {
           click: me.analyzeAsset
@@ -234,11 +246,9 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
   onRepositorySelection: function(model) {
     var me = this, componentAssetTreeStore = me.getStore('ComponentAssetTree');
 
-    if (!me.selectedRepository || me.selectedRepository.id !== model.id) {
-      //reset the filter
-      componentAssetTreeStore.proxy.setExtraParam('filter');
-      componentAssetTreeStore.proxy.setExtraParam('repositoryName', model.get('name'));
-    }
+    //reset the filter
+    componentAssetTreeStore.proxy.setExtraParam('filter');
+    componentAssetTreeStore.proxy.setExtraParam('repositoryName', model.get('name'));
 
     // Update HTML View link
     me.updateHtmlLink(model);
@@ -249,6 +259,8 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
     me.expandTree();
 
     me.selectedRepository = model;
+
+    me.updateWarningMessage(model.get('name'));
   },
 
   expandTree: function() {
@@ -359,8 +371,28 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
   },
 
   stateChanged: function() {
-    var me = this;
-    me.updateUploadButton();
+    var currentRepository = this.getCurrentRepository(),
+        repositoryName = currentRepository ? currentRepository.get('name') : null;
+
+    this.updateUploadButton();
+    this.updateWarningMessage(repositoryName);
+  },
+
+  updateWarningMessage: function(repositoryName) {
+    var warning = this.getTreeWarning(),
+        rebuildingRepositories = NX.State.getValue('rebuildingRepositories') || [];
+
+    if (!warning) {
+      return;
+    }
+
+    if (rebuildingRepositories.indexOf('*') !== -1 || rebuildingRepositories.indexOf(repositoryName) !== -1) {
+      warning.setTitle(NX.I18n.format('ComponentDetails_Rebuild_Warning'));
+      warning.show();
+    }
+    else {
+      warning.hide();
+    }
   },
 
   bookmarkNode: function(node) {
@@ -376,65 +408,110 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
 
   selectNode: function(view, node) {
     var me = this,
-        containerView = me.getComponentAssetTree(),
         componentInfoPanel,
-        assetInfoPanel;
+        componentInfoPanelTitleText,
+        assetInfoPanel,
+        isFolder = !node.get('leaf');
 
     me.removeSideContent();
     me.bookmarkNode(node);
 
     if ('component' === node.get('type')) {
-      componentInfoPanel = containerView.add(me.getComponentComponentInfoView().create({
-        title: me.buildPathString(node),
-        iconCls: 'nx-icon-tree-component-x16',
-        flex: 2
-      }));
-      componentInfoPanel.getEl() && componentInfoPanel.getEl().mask(NX.I18n.get('ComponentDetails_Loading_Mask'));
+      componentInfoPanelTitleText = me.buildPathString(node);
+      componentInfoPanel = me.getComponentInfo();
+      componentInfoPanel.setTitle(componentInfoPanelTitleText);
+      componentInfoPanel.setIconCls(me.mixins.componentUtils.getIconForAsset(node).get('cls'));
+      componentInfoPanel.getDependencySnippetPanel().hide();
+      componentInfoPanel.show();
+      componentInfoPanel.mask(NX.I18n.get('ComponentDetails_Loading_Mask'));
+
       NX.direct.coreui_Component.readComponent(node.get('componentId'), me.getCurrentRepository().get('name'), function(response) {
         var componentModel;
         me.maybeUnmask(componentInfoPanel);
         if (me.isPanelVisible(componentInfoPanel) && me.isResponseSuccessful(response)) {
           componentModel = me.getComponentModel().create(response.data);
-          componentInfoPanel.setModel(componentModel);
-          me.updateDeleteComponentButton(me.getCurrentRepository(), componentModel);
-          me.updateAnalyzeButton(componentModel);
+          me.setComponentModel(componentModel);
          }
       });
     }
     else if ('asset' === node.get('type')) {
-      assetInfoPanel = containerView.add(me.getComponentComponentAssetInfoView().create({
-        flex: 2,
-        iconCls: 'nx-icon-tree-asset-x16'
-      }));
-      assetInfoPanel.getEl() && assetInfoPanel.getEl().mask(NX.I18n.get('ComponentDetails_Loading_Mask'));
+      assetInfoPanel = me.getComponentAssetInfo();
+      assetInfoPanel.setIconCls(me.mixins.componentUtils.getIconForAsset(node).get('cls'));
+      assetInfoPanel.getDependencySnippetPanel().hide();
+      assetInfoPanel.show();
+      assetInfoPanel.mask(NX.I18n.get('ComponentDetails_Loading_Mask'));
 
       NX.direct.coreui_Component.readAsset(node.get('assetId'), me.getCurrentRepository().get('name'), function(response) {
         if (me.isPanelVisible(assetInfoPanel) && me.isResponseSuccessful(response)) {
-          me.setInfoPanelModel(assetInfoPanel, me.getAssetModel().create(response.data));
+          me.setInfoPanelModel(assetInfoPanel, me.getAssetModel().create(response.data), isFolder);
         }
         else {
           me.maybeUnmask(assetInfoPanel);
         }
       });
     }
+    else if ('folder' === node.get('type')) {
+      var folderInfoPanel = me.getComponentFolderInfo();
+      folderInfoPanel.setTitle(Ext.util.Format.htmlEncode(decodeURI(node.getId())));
+      folderInfoPanel.setIconCls(me.mixins.componentUtils.getIconForAsset(node).get('cls'));
+      folderInfoPanel.show();
+
+      folderInfoPanel.mask(NX.I18n.get('ComponentDetails_Loading_Mask'));
+      me.getDeleteFolderButton().show();
+      me.getDeleteFolderButton().enable();
+      folderInfoPanel.setModel({repositoryName: me.getCurrentRepository().get('name'), folderName: node.get('text'), path: node.get('id')});
+      me.updateDeleteFolderButton(me.getDeleteFolderButton(), me.getCurrentRepository(), node.get('id'));
+      me.maybeUnmask(folderInfoPanel);
+    }
   },
 
-  setInfoPanelModel: function(assetInfoPanel, asset) {
-    var me = this;
+  setComponentModel: function(componentModel) {
+    var componentInfoPanel = this.getComponentInfo();
+
+    componentInfoPanel.setModel(componentModel);
+    this.updateDeleteComponentButton(this.getCurrentRepository(), componentModel);
+    this.updateAnalyzeButton(componentModel);
+    this.setDependencySnippets(componentInfoPanel.getDependencySnippetPanel(), componentModel);
+  },
+
+  setInfoPanelModel: function(assetInfoPanel, asset, isFolder) {
+    var me = this,
+        componentModel;
+
     if (asset.get('componentId')) {
       NX.direct.coreui_Component.readComponent(asset.get('componentId'), me.getCurrentRepository().get('name'), function (response) {
         me.maybeUnmask(assetInfoPanel);
         if (me.isPanelVisible(assetInfoPanel) && me.isResponseSuccessful(response)) {
-          assetInfoPanel.setModel(asset, me.getComponentModel().create(response.data));
-          me.updateDeleteAssetButton(me.getCurrentRepository(), asset);
+          componentModel = me.getComponentModel().create(response.data);
+          assetInfoPanel.setModel(asset, componentModel);
+          me.updateDeleteAssetButton(me.getCurrentRepository(), asset, isFolder);
+          me.setDependencySnippets(assetInfoPanel.getDependencySnippetPanel(), componentModel, asset);
         }
       });
     }
     else {
       me.maybeUnmask(assetInfoPanel);
       if (me.isPanelVisible(assetInfoPanel)) {
-        assetInfoPanel.setModel(asset, me.getComponentModel().create({}));
-        me.updateDeleteAssetButton(me.getCurrentRepository(), asset);
+        componentModel = me.getComponentModel().create({});
+        assetInfoPanel.setModel(asset, componentModel);
+        me.updateDeleteAssetButton(me.getCurrentRepository(), asset, isFolder);
+        me.setDependencySnippets(assetInfoPanel.getDependencySnippetPanel(), componentModel, asset);
+      }
+    }
+  },
+
+  setDependencySnippets: function(dependencySnippetPanel, componentModel, assetModel) {
+    var format, dependencySnippets;
+
+    if (componentModel) {
+      format = componentModel.get('format');
+      dependencySnippets = NX.getApplication().getDependencySnippetController()
+          .getDependencySnippets(format, componentModel, assetModel);
+
+      dependencySnippetPanel.setDependencySnippets(format, dependencySnippets);
+
+      if (dependencySnippets && dependencySnippets.length > 0) {
+        dependencySnippetPanel.show();
       }
     }
   },
@@ -463,11 +540,13 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
 
   removeSideContent: function() {
     var me = this,
-        containerView = me.getComponentAssetTree();
+        componentInfo = me.getComponentInfo(),
+        componentAssetInfo = me.getComponentAssetInfo(),
+        componentFolderInfo = me.getComponentFolderInfo();
 
-    while (containerView.items.getCount() > 1) {
-      containerView.remove(containerView.items.getAt(1));
-    }
+    componentInfo.hide();
+    componentAssetInfo.hide();
+    componentFolderInfo.hide();
   },
 
   buildPathString: function(node) {
@@ -629,6 +708,7 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
     var me = this,
         treePanel = me.getComponentAssetTreePanel(),
         componentInfo = me.getComponentInfo(),
+        selectedNode = treePanel.getSelectionModel().getSelection()[0],
         componentModel, componentId;
 
     if (componentInfo) {
@@ -637,15 +717,13 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
       NX.Dialogs.askConfirmation(NX.I18n.get('ComponentDetails_Delete_Title'), Ext.htmlEncode(NX.I18n.format('ComponentDetails_Delete_Body', componentId)), function() {
         NX.direct.coreui_Component.deleteComponent(JSON.stringify(componentModel.getData()), function(response) {
           if (Ext.isObject(response) && response.success && Ext.isArray(response.data)) {
+            me.removeNodeFromTree(selectedNode);
             Ext.each(response.data, function (nodeId) {
               var node = treePanel.getStore().findNode('id', nodeId);
               if (node) {
-                node.remove();
+                me.removeNodeFromTree(node);
               }
             });
-            var selectedRecord = treePanel.getSelectionModel().getSelection()[0];
-            me.removeNodeFromTree(selectedRecord);
-            me.removeSideContent();
             NX.Messages.add({text: NX.I18n.format('ComponentDetails_Delete_Success', componentId), type: 'success'});
           }
         });
@@ -669,17 +747,64 @@ Ext.define('NX.coreui.controller.ComponentAssetTree', {
           if (Ext.isObject(response) && response.success) {
             var selectedRecord = treePanel.getSelectionModel().getSelection()[0];
             if (selectedRecord.get('leaf')) {
+              me.removeSideContent();
               me.removeNodeFromTree(selectedRecord);
             }
             else {
               selectedRecord.set('type', 'folder');
-              selectedRecord.set('iconCls', selectedRecord.computeIconClass());
+              selectedRecord.set('iconCls', me.mixins.componentUtils.getIconForAsset(selectedRecord).get('cls'));
             }
-            me.removeSideContent();
             NX.Messages.add({text: NX.I18n.format('AssetInfo_Delete_Success', asset.get('name')), type: 'success'});
           }
         });
       });
+    }
+  },
+
+  /**
+   * @private
+   * Remove selected Folder.
+   */
+  deleteFolder: function() {
+    var me = this,
+        componentFolderInfo = me.getComponentFolderInfo();
+
+    if (componentFolderInfo) {
+      var model = componentFolderInfo.folderModel;
+      NX.Dialogs.askConfirmation(
+          NX.I18n.get('FolderInfo_Delete_Title'),
+          NX.I18n.format('FolderInfo_Delete_Text', Ext.htmlEncode(model.folderName)),
+          function() {
+            NX.direct.coreui_Component.deleteFolder(model.path, model.repositoryName,
+                function(response) {
+                  if (Ext.isObject(response) && response.success) {
+                    NX.Messages.add({text: NX.I18n.format('FolderInfo_Delete_Success'), type: 'success'});
+                  }
+                });
+          });
+    }
+  },
+
+  /**
+   * @private
+   * Remove selected Folder.
+   */
+  deleteAssetFolder: function() {
+    var componentAssetInfo = this.getComponentAssetInfo();
+
+    if (componentAssetInfo) {
+      var asset = componentAssetInfo.assetModel;
+      NX.Dialogs.askConfirmation(
+          NX.I18n.get('FolderInfo_Delete_Title'),
+          NX.I18n.format('FolderInfo_Delete_Text', Ext.htmlEncode(asset.get('name'))),
+          function() {
+            NX.direct.coreui_Component.deleteFolder(asset.get('name'), asset.get('repositoryName'),
+                function(response) {
+                  if (Ext.isObject(response) && response.success) {
+                    NX.Messages.add({text: NX.I18n.format('FolderInfo_Delete_Success'), type: 'success'});
+                  }
+                });
+          });
     }
   },
 

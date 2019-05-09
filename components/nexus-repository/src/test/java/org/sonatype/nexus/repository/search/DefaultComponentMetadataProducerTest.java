@@ -31,8 +31,10 @@ import org.mockito.Mock;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.joda.time.Duration.standardHours;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -92,6 +94,59 @@ public class DefaultComponentMetadataProducerTest
     assertValue(jsonAsset, DefaultComponentMetadataProducer.NAME, NAME);
 
     verify(componentMetadataProducerExtension).getComponentMetadata(any(Component.class));
+  }
+
+  @Test
+  public void testMissingVersion() throws IOException {
+    Bucket bucket = createBucket(REPO_NAME);
+    Component component = createDetachedComponent(bucket, GROUP, NAME, "");
+    Iterable<Asset> assets = newArrayList(createDetachedAsset(bucket, NAME, component));
+
+    String result = underTest.getMetadata(component, assets, emptyMap());
+
+    JsonNode json = mapper.readTree(result);
+
+    assertValue(json, DefaultComponentMetadataProducer.VERSION, "");
+    assertValue(json, DefaultComponentMetadataProducer.NORMALIZED_VERSION, "");
+  }
+
+  @Test
+  public void testNormalizedVersion() throws IOException {
+    Bucket bucket = createBucket(REPO_NAME);
+    Component component = createDetachedComponent(bucket, GROUP, NAME, "11.11.11-10");
+    Iterable<Asset> assets = newArrayList(createDetachedAsset(bucket, NAME, component));
+
+    String result = underTest.getMetadata(component, assets, emptyMap());
+
+    JsonNode json = mapper.readTree(result);
+
+    assertValue(json, DefaultComponentMetadataProducer.NORMALIZED_VERSION, "000000011.000000011.000000011-000000010");
+  }
+
+  @Test
+  public void testEmptyNormalizedVersion() throws IOException {
+    Bucket bucket = createBucket(REPO_NAME);
+    Component component = createDetachedComponent(bucket, GROUP, NAME, "");
+    Iterable<Asset> assets = newArrayList(createDetachedAsset(bucket, NAME, component));
+
+    String result = underTest.getMetadata(component, assets, emptyMap());
+
+    JsonNode json = mapper.readTree(result);
+
+    assertValue(json, DefaultComponentMetadataProducer.NORMALIZED_VERSION, "");
+  }
+
+  @Test
+  public void testLongNormalizedVersion() throws IOException {
+    Bucket bucket = createBucket(REPO_NAME);
+    Component component = createDetachedComponent(bucket, GROUP, NAME, "v1-rev20181217-1.27.0123456789123456789123456789");
+    Iterable<Asset> assets = newArrayList(createDetachedAsset(bucket, NAME, component));
+
+    String result = underTest.getMetadata(component, assets, emptyMap());
+
+    JsonNode json = mapper.readTree(result);
+
+    assertValue(json, DefaultComponentMetadataProducer.NORMALIZED_VERSION, "v000000001-rev020181217-000000001.000000027.0123456789123456789123456789");
   }
 
   @Test
@@ -156,7 +211,7 @@ public class DefaultComponentMetadataProducerTest
     Bucket bucket = createBucket(REPO_NAME);
     Component component = createDetachedComponent(bucket, GROUP, NAME, VERSION);
     Asset expected = createDetachedAsset(bucket, NAME, component);
-    expected.markAsDownloaded();
+    expected.markAsDownloaded(standardHours(12));
     Iterable<Asset> assets = newArrayList(
         createDetachedAsset(bucket, "asset1", component),
         expected,

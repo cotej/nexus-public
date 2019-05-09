@@ -40,14 +40,13 @@ import org.mockito.ArgumentCaptor
 import org.mockito.Mock
 
 import static com.google.common.collect.Lists.asList
-import static com.google.common.collect.Lists.newArrayList
 import static com.google.common.collect.Maps.newHashMap
 import static java.util.Collections.emptyList
 import static java.util.Collections.singletonList
 import static java.util.UUID.randomUUID
 import static java.util.stream.Collectors.toList
 import static org.fest.assertions.api.Assertions.assertThat
-import static org.hamcrest.Matchers.containsInAnyOrder
+import static org.hamcrest.Matchers.contains
 import static org.hamcrest.Matchers.empty
 import static org.hamcrest.Matchers.equalTo
 import static org.hamcrest.Matchers.instanceOf
@@ -178,6 +177,9 @@ class RepositoryManagerImplTest
   @Mock
   EntityMetadata entityMetadata
 
+  @Mock
+  GroupMemberMappingCache groupMemberMappingCache
+
   //Subject of the test
   RepositoryManagerImpl repositoryManager
 
@@ -266,7 +268,8 @@ class RepositoryManagerImplTest
   private RepositoryManagerImpl initializeAndStartRepositoryManager(boolean skipDefaultRepositories) {
     repositoryManager = new RepositoryManagerImpl(eventManager, configurationStore, repositoryFactory,
         configurationFacetProvider, ImmutableMap.of(recipeName, recipe), securityContributor,
-        defaultRepositoriesContributorList, databaseFreezeService, skipDefaultRepositories, blobStoreManager)
+        defaultRepositoriesContributorList, databaseFreezeService, skipDefaultRepositories, blobStoreManager,
+        groupMemberMappingCache)
 
     repositoryManager.doStart()
     return repositoryManager
@@ -412,27 +415,6 @@ class RepositoryManagerImplTest
   }
 
   @Test
-  void 'retrieve names of all groups a repository is contained in'() {
-    repositoryManager = buildRepositoryManagerImpl(true)
-    def groupNames = repositoryManager.findContainingGroups(MAVEN_CENTRAL_NAME)
-    assertThat(groupNames, containsInAnyOrder(GROUP_NAME, PARENT_GROUP_NAME))
-  }
-
-  @Test
-  void 'retrieve names of all groups when a circular dependency is present'() {
-    repositoryManager = buildRepositoryManagerImpl(true)
-    def groupNames = repositoryManager.findContainingGroups(APACHE_SNAPSHOTS_NAME)
-    assertThat(groupNames, containsInAnyOrder(GROUP_NAME, PARENT_GROUP_NAME, CYCLE_A_NAME, CYCLE_B_NAME))
-  }
-
-  @Test
-  void 'retrieve names of repo not in group'() {
-    repositoryManager = buildRepositoryManagerImpl(true)
-    def groupNames = repositoryManager.findContainingGroups(UNGROUPED_REPO_NAME)
-    assertThat(groupNames, empty())
-  }
-
-  @Test
   void 'repository with cleanup policy is correctly loaded'() {
     repositoryManager = buildRepositoryManagerImpl(true)
 
@@ -480,5 +462,13 @@ class RepositoryManagerImplTest
     def stream = repositoryManager.browseForCleanupPolicy(randomUUID().toString())
 
     assertThat(stream.count()).isEqualTo(0)
+  }
+
+  @Test
+  void 'member to group cache functions with no repositories'() {
+    repositoryManager = buildRepositoryManagerImpl(false, true)
+
+    //this would throw an NPE previously
+    repositoryManager.findContainingGroups('test')
   }
 }

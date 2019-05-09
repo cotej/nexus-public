@@ -24,12 +24,16 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 import org.sonatype.nexus.common.entity.EntityEvent;
+import org.sonatype.nexus.common.entity.EntityId;
 import org.sonatype.nexus.common.entity.EntityMetadata;
 import org.sonatype.nexus.orient.OClassNameBuilder;
 import org.sonatype.nexus.orient.OIndexNameBuilder;
+import org.sonatype.nexus.orient.entity.AttachedEntityId;
 import org.sonatype.nexus.orient.entity.AttachedEntityMetadata;
 import org.sonatype.nexus.orient.entity.IterableEntityAdapter;
 import org.sonatype.nexus.repository.config.Configuration;
+import org.sonatype.nexus.repository.routing.RoutingRulesConfiguration;
+import org.sonatype.nexus.repository.routing.internal.RoutingRuleEntityAdapter;
 import org.sonatype.nexus.security.PasswordHelper;
 
 import com.orientechnologies.orient.core.collate.OCaseInsensitiveCollate;
@@ -50,13 +54,17 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public class ConfigurationEntityAdapter
     extends IterableEntityAdapter<Configuration>
 {
+  public static final String DB_NAME = "repository";
+
   private static final String DB_CLASS = new OClassNameBuilder()
-      .type("repository")
+      .type(DB_NAME)
       .build();
 
   private static final String P_REPOSITORY_NAME = "repository_name";
 
   private static final String P_RECIPE_NAME = "recipe_name";
+
+  public static final String P_ROUTING_RULE_ID = "routingRuleId";
 
   private static final String P_ONLINE = "online";
 
@@ -69,10 +77,19 @@ public class ConfigurationEntityAdapter
 
   private final PasswordHelper passwordHelper;
 
+  private final RoutingRulesConfiguration routingRulesConfiguration;
+
+  private final RoutingRuleEntityAdapter routingRuleEntityAdapter;
+
   @Inject
-  public ConfigurationEntityAdapter(final PasswordHelper passwordHelper) {
+  public ConfigurationEntityAdapter(final PasswordHelper passwordHelper,
+                                    final RoutingRulesConfiguration routingRulesConfiguration,
+                                    final RoutingRuleEntityAdapter routingRuleEntityAdapter)
+  {
     super(DB_CLASS);
     this.passwordHelper = checkNotNull(passwordHelper);
+    this.routingRulesConfiguration = checkNotNull(routingRulesConfiguration);
+    this.routingRuleEntityAdapter = checkNotNull(routingRuleEntityAdapter);
   }
 
   @Override
@@ -84,6 +101,7 @@ public class ConfigurationEntityAdapter
     type.createProperty(P_RECIPE_NAME, OType.STRING)
         .setMandatory(true)
         .setNotNull(true);
+    type.createProperty(P_ROUTING_RULE_ID, OType.LINK);
     type.createProperty(P_ONLINE, OType.BOOLEAN)
         .setMandatory(true)
         .setNotNull(true);
@@ -102,6 +120,12 @@ public class ConfigurationEntityAdapter
     String repositoryName = document.field(P_REPOSITORY_NAME, OType.STRING);
     Boolean online = document.field(P_ONLINE, OType.BOOLEAN);
     Map<String, Map<String, Object>> attributes = document.field(P_ATTRIBUTES, OType.EMBEDDEDMAP);
+    if (routingRulesConfiguration.isEnabled()) {
+      ODocument routingRule = document.field(P_ROUTING_RULE_ID, OType.LINK);
+      EntityId routingRuleId =
+          routingRule == null ? null : new AttachedEntityId(routingRuleEntityAdapter, routingRule.getIdentity());
+      entity.setRoutingRuleId(routingRuleId);
+    }
 
     entity.setRecipeName(recipeName);
     entity.setRepositoryName(repositoryName);
@@ -124,6 +148,13 @@ public class ConfigurationEntityAdapter
     document.field(P_REPOSITORY_NAME, entity.getRepositoryName());
     document.field(P_ONLINE, entity.isOnline());
     document.field(P_ATTRIBUTES, encrypt(attributes));
+
+    if (routingRulesConfiguration.isEnabled()) {
+      document.field(P_ROUTING_RULE_ID, entity.getRoutingRuleId() != null ?
+          getRecordIdObfuscator()
+              .decode(routingRuleEntityAdapter.getSchemaType(), entity.getRoutingRuleId().getValue()) :
+          null);
+    }
   }
 
   /**

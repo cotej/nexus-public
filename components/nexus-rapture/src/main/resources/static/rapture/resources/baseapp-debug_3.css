@@ -1,4 +1,206 @@
 
+.x-window-header-nx-message-success-collapsed-bottom-tc {
+    height: 4px;
+}
+
+.x-window-header-nx-message-success-collapsed-bottom-bc {
+    height: 4px;
+}
+
+.x-window-header-nx-message-success-collapsed-bottom-tl,
+.x-window-header-nx-message-success-collapsed-bottom-bl,
+.x-window-header-nx-message-success-collapsed-bottom-tr,
+.x-window-header-nx-message-success-collapsed-bottom-br,
+.x-window-header-nx-message-success-collapsed-bottom-tc,
+.x-window-header-nx-message-success-collapsed-bottom-bc,
+.x-window-header-nx-message-success-collapsed-bottom-ml,
+.x-window-header-nx-message-success-collapsed-bottom-mr {
+    background-image: url(images/window-header/window-header-nx-message-success-collapsed-bottom-corners.gif);
+}
+
+.x-window-header-nx-message-success-collapsed-bottom-ml,
+.x-window-header-nx-message-success-collapsed-bottom-mr {
+    background-image: url(images/window-header/window-header-nx-message-success-collapsed-bottom-sides.gif);
+    background-repeat: repeat-y;
+}
+
+.x-window-header-nx-message-success-collapsed-bottom-mc {
+    padding: 6px 6px 6px 6px;
+}
+
+.x-window-header-nx-message-success-collapsed-left {
+    -webkit-border-radius: 4px;
+    -moz-border-radius: 4px;
+    -ms-border-radius: 4px;
+    -o-border-radius: 4px;
+    border-radius: 4px;
+    padding: 10px 10px 10px 10px;
+    border-width: 0;
+    border-style: solid;
+    background-color: #0b9743;
+}
+
+.x-window-header-nx-message-success-collapsed-left-mc {
+    background-color: #0b9743;
+}
+
+.x-nbr .x-window-header-nx-message-success-collapsed-left {
+    padding: 0 !important;
+    border-width: 0 !important;
+    -webkit-border-radius: 0px;
+    -moz-border-radius: 0px;
+    -ms-border-radius: 0px;
+    -o-border-radius: 0px;
+    border-radius: 0px;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.x-window-header-nx-message-success-collapsed-left-frameInfo {
+    font-family: dh-4-4-4-4-0-0-0-0-10-10-10-10;
+}
+
+.x-window-header-nx-message-success-collapsed-left-tl {
+    background-position: 0 -8px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-tr {
+    background-position: right -12px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-bl {
+    background-position: 0 -16px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-br {
+    background-position: right -20px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-ml {
+    background-position: 0 top;
+}
+
+.x-window-header-nx-message-success-collapsed-left-mr {
+    background-position: right top;
+}
+
+.x-window-header-nx-message-success-collapsed-left-tc {
+    background-position: 0 0;
+}
+
+.x-window-header-nx-message-success-collapsed-left-bc {
+    background-position: 0 -4px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-tr,
+.x-window-header-nx-message-success-collapsed-left-br,
+.x-window-header-nx-message-success-collapsed-left-mr {
+    padding-right: 4px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-tl,
+.x-window-header-nx-message-success-collapsed-left-bl,
+.x-window-header-nx-message-success-collapsed-left-ml {
+    padding-left: 4px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-tc {
+    height: 4px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-bc {
+    height: 4px;
+}
+
+.x-window-header-nx-message-success-collapsed-left-tl,
+.x-window-header-nx-message-success-collapsed-left-bl,
+.x-window-header-nx-message-success-collapsed-left-tr,
+.x-window-header-nx-message-success-collapsed-left-br,
+.x-window-header-nx-message-success-collapsed-left-tc,
+.x-window-header-nx-message-success-collapsed-left-bc,
+.x-window-header-nx-message-success-collapsed-left-ml,
+.x-window-header-nx-message-success-collapsed-left-mr {
+    background-image: url(images/window-header/window-header-nx-message-success-collapsed-left-corners.gif);
+}
+
+.x-window-header-nx-message-success-collapsed-left-ml,
+.x-window-header-nx-message-success-collapsed-left-mr {
+    background-image: url(images/window-header/window-header-nx-message-success-collapsed-left-sides.gif);
+    background-repeat: repeat-y;
+}
+
+.x-window-header-nx-message-success-collapsed-left-mc {
+    padding: 6px 6px 6px 6px;
+}
+
+.x-window-header-nx-message-success .x-window-header-icon {
+    width: 16px;
+    height: 16px;
+    color: #333;
+    font-size: 16px;
+    line-height: 16px;
+    background-position: center center;
+}
+
+.x-window-header-nx-message-success .x-window-header-glyph {
+    color: #333;
+    font-size: 16px;
+    line-height: 16px;
+    opacity: 0.5;
+}
+
+.x-ie8 .x-window-header-nx-message-success .x-window-header-glyph {
+    color: #1f653b;
+}
+
+.x-window-header-nx-message-success-horizontal .x-tool-after-title {
+    margin: 0 0 0 6px;
+}
+
+.x-window-header-nx-message-success-horizontal .x-tool-before-title {
+    margin: 0 6px 0 0;
+}
+
+.x-window-header-nx-message-success-vertical .x-tool-after-title {
+    margin: 6px 0 0 0;
+}
+
+.x-window-header-nx-message-success-vertical .x-tool-before-title {
+    margin: 0 0 6px 0;
+}
+
+.x-keyboard-mode .x-window-header-nx-message-success .x-tool-focus {
+    outline: 1px solid #fff;
+    outline-offset: 2px;
+}
+
+.x-ie .x-keyboard-mode .x-window-header-nx-message-success .x-tool-focus,
+.x-ie10p .x-keyboard-mode .x-window-header-nx-message-success .x-tool-focus,
+.x-edge .x-keyboard-mode .x-window-header-nx-message-success .x-tool-focus {
+    outline: none;
+}
+
+.x-ie .x-keyboard-mode .x-window-header-nx-message-success .x-tool-focus:after,
+.x-ie10p .x-keyboard-mode .x-window-header-nx-message-success .x-tool-focus:after,
+.x-edge .x-keyboard-mode .x-window-header-nx-message-success .x-tool-focus:after {
+    position: absolute;
+    content: ' ';
+    top: -3px;
+    right: -3px;
+    bottom: -3px;
+    left: -3px;
+    border: 1px solid #fff;
+    pointer-events: none;
+}
+
+.x-window-header-nx-message-success {
+    border-width: 0 !important;
+}
+
+.x-nbr .x-window-nx-message-success-collapsed .x-window-header {
+    border-width: 0 !important;
+}
+
 .x-window-nx-message-success-outer-border-l {
     border-left-color: #606060 !important;
     border-left-width: 2px !important;
@@ -112,14 +314,20 @@
 
 .x-form-field[readonly]:not([role="combobox"]),
 .x-form-readonly input[role="combobox"] {
-    color: #777;
-    background-color: #ebebeb;
+    color: #444;
     opacity: 1;
 }
 
+.x-form-readonly .x-form-trigger-wrap-default {
+    border: none;
+}
+
+.x-form-readonly .nx-boxlabel {
+    display: none;
+}
+
 .nx-combo-disabled input {
-    color: #777;
-    background-color: #ebebeb;
+    color: #444;
     opacity: 1;
 }
 
@@ -197,14 +405,15 @@ fieldset.nx-form-section > .x-fieldset-header > .x-fieldset-header-text {
 
 fieldset.nx-form-section .x-fieldset-body {
     padding-left: 10px;
+    padding-right: 10px;
 }
 
 fieldset.nx-form-section.nx-no-title {
     padding-top: 0;
 }
 
-fieldset.x-fieldset {
-    overflow: visible;
+.x-panel-nx-subsection-with-background-framed fieldset.nx-form-section {
+    padding-bottom: 0;
 }
 
 .nx-monospace-field textarea,
@@ -549,6 +758,29 @@ fieldset.x-fieldset {
 
 .nx-disabled-row td button {
     color: #777;
+}
+
+.x-grid-item .x-grid-row .x-grid-item-focused .x-grid-cell-inner:before {
+    border: none;
+}
+
+.x-panel-nx-subsection-framed .grid-with-border .x-grid-header-ct {
+    border-left: 1px solid #ddd !important;
+    border-right: 1px solid #ddd !important;
+}
+
+.x-panel-nx-subsection-framed .grid-with-border .x-grid-view {
+    border-left: 1px solid #ddd !important;
+    border-right: 1px solid #ddd !important;
+    border-bottom: 1px solid #ddd !important;
+}
+
+.x-panel-nx-subsection-framed .grid-with-border .x-grid-item:last-child {
+    border-bottom-width: 0;
+}
+
+.nx-drilldown-master .x-grid-item {
+    padding: 2px 0;
 }
 
 .nx-middle-align {
@@ -2297,6 +2529,14 @@ fieldset.x-fieldset {
 * @class Ext.ux.form.ItemSelector
 */
     opacity: 1;
+}
+
+.nx-itemselector-disabled .x-toolbar.x-item-disabled {
+    visibility: hidden;
+}
+
+.nx-itemselector-disabled .nx-filterbox {
+    display: none;
 }
 
 .x-form-itemselector-body .x-form-item {
@@ -5550,8 +5790,75 @@ fieldset.x-fieldset {
     padding: 5px !important;
 }
 
+.nx-searchbox .nx-searchbox-icon {
+    /**
+ * @class NX.ext.SearchBox
+ */
+    display: inline-block;
+}
+
+.nx-searchbox .has-icon {
+    width: 100%;
+}
+
+.nx-searchbox .has-icon input {
+    display: inline-block;
+    width: calc(100% - 16px);
+}
+
+.nx-searchbox input {
+    color: #000;
+}
+
+.nx-searchbox input::-webkit-input-placeholder {
+    
+    
+    color: #777;
+}
+
+.nx-searchbox input::-moz-placeholder {
+    
+    
+    color: #777;
+}
+
+.nx-searchbox input:-ms-input-placeholder {
+    
+    
+    color: #777;
+}
+
+.nx-searchbox .x-form-trigger-wrap {
+    border-color: #ddd;
+    border-radius: 3px;
+    height: 24px;
+    overflow: hidden;
+}
+
+.nx-searchbox .x-form-trigger {
+    background-image: none;
+}
+
+.nx-searchbox:hover .nx-form-fa-times-circle-trigger,
+.nx-searchbox .x-form-trigger-wrap-focus .nx-form-fa-times-circle-trigger {
+    background-image: url(images/form/fa-times-circle-trigger.png);
+}
+
+.nx-searchbox:hover .nx-form-fa-minus-circle-trigger,
+.nx-searchbox .x-form-trigger-wrap-focus .nx-form-fa-minus-circle-trigger {
+    background-image: url(images/form/fa-minus-circle-trigger.png);
+}
+
 [id^=nx-coreui-logging-feature] [id^=roweditor] .x-form-item:first-child .x-form-display-field {
     text-overflow: clip;
+}
+
+.nx-filterbox .nx-searchbox-icon {
+    /**
+ * @class NX.ext.grid.plugin.FilterBox
+ */
+    color: grey;
+    padding-left: 3px;
 }
 
 .nx-search-tip {
@@ -6245,6 +6552,11 @@ fieldset.x-fieldset {
     border-color: #333;
 }
 
+.nx-quicksearch .x-form-trigger-wrap .nx-searchbox-icon {
+    color: #fff;
+    padding: 0 0 2px 2px;
+}
+
 .nx-quicksearch .x-form-trigger-wrap input.x-form-field,
 .nx-quicksearch .x-form-trigger-wrap .x-trigger-cell,
 .nx-quicksearch .x-form-trigger-wrap .x-form-trigger,
@@ -6294,6 +6606,14 @@ fieldset.x-fieldset {
     font-size: 20px;
     line-height: 20px;
     height: 20px;
+}
+
+.nx-header-panel .nx-health-button-red span span {
+    color: #c70000;
+}
+
+.nx-header-panel .nx-health-button-green span span {
+    color: #0b9743;
 }
 
 .x-btn-nx-header-medium {
@@ -7160,12 +7480,21 @@ fieldset.x-fieldset {
     border: none;
 }
 
-.x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item {
-    height: 2.8em;
-}
-
 .x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item .x-grid-cell {
     background-color: #ddd;
+    height: 2.5em;
+}
+
+.x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item .x-grid-cell.separator {
+    height: 1em;
+}
+
+.x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item .x-grid-cell.separator .x-grid-cell-inner {
+    border-top: solid 1px #b8b8b8;
+    height: 0;
+    margin: 0 1em;
+    padding: 0 0.5em;
+    width: calc(100% - 2em);
 }
 
 .x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item .x-grid-td {
@@ -7173,7 +7502,7 @@ fieldset.x-fieldset {
     vertical-align: middle;
 }
 
-.x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item-over .x-grid-cell {
+.x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item-over .x-grid-cell:not(.separator):not(.iq-dashboard-link) {
     background-color: #ebebeb;
 }
 
@@ -7189,6 +7518,11 @@ fieldset.x-fieldset {
     font-size: 1em;
 }
 
+.x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-tree-icon.nx-icon-feature-browse-welcome-x16 {
+    filter: grayscale(100%);
+    -webkit-filter: grayscale(100%);
+}
+
 .x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-tree-node-text {
     padding-left: 0.5em;
 }
@@ -7202,6 +7536,11 @@ fieldset.x-fieldset {
     color: #fff;
     filter: saturate(1) grayscale(0);
     -webkit-filter: saturate(1) grayscale(0);
+}
+
+.x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item-selected .x-tree-icon.nx-icon-feature-browse-welcome-x16 {
+    filter: grayscale(100%);
+    -webkit-filter: grayscale(100%);
 }
 
 .x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-item-selected .x-tree-expander {
@@ -7222,6 +7561,38 @@ fieldset.x-fieldset {
 .x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-tree-node-expanded .x-tree-expander {
     margin: 6px 6px 0 3px;
     transform: rotate(90deg);
+}
+
+.x-panel-nx-feature-menu .x-panel-body-nx-feature-menu .x-grid-cell-inner-treecolumn {
+    padding: 5px 8px 4px 6px;
+}
+
+.x-panel-nx-feature-menu .iq-dashboard-link a.x-tree-node-text {
+    color: #369;
+    padding-left: 0;
+    text-decoration: none;
+}
+
+.x-panel-nx-feature-menu .iq-dashboard-link a.x-tree-node-text:hover {
+    color: #036;
+    text-decoration: underline;
+}
+
+.x-panel-nx-feature-menu .iq-dashboard-link a.x-tree-node-text span.fa-dashboard {
+    padding-right: 0.65em;
+}
+
+.x-panel-nx-feature-menu .iq-dashboard-link a.x-tree-node-text span.fa-external-link {
+    font-size: 0.8em;
+    padding-left: 0.5em;
+}
+
+.x-panel-nx-feature-menu .iq-dashboard-link .x-tree-icon {
+    display: none;
+}
+
+.x-panel-nx-feature-menu .separator {
+    pointer-events: none;
 }
 
 .x-panel-nx-feature-content {
@@ -7877,6 +8248,14 @@ fieldset.x-fieldset {
 .nx-feature-content .x-panel-body .x-panel-nx-subsection-framed > div + .x-toolbar .x-toolbar-item,
 .nx-feature-content .x-panel-body .nx-actions.x-toolbar .x-toolbar-item {
     margin: 6px 0 6px 8px;
+}
+
+.x-panel-nx-subsection-framed .x-toolbar-default-docked-top {
+    padding: 0;
+}
+
+.x-panel-nx-subsection-framed .x-toolbar-default-docked-top .x-toolbar-item {
+    margin: 0;
 }
 
 .nx-feature-header {
@@ -8654,6 +9033,22 @@ fieldset.x-fieldset {
     margin: 0;
 }
 
+.nx-info-dependency-snippet-panel .description {
+    /**
+ * @class NX.view.info.DependencySnippetPanel
+ */
+    color: #444;
+    margin: 10px 2px 0 2px;
+}
+
+.nx-info-dependency-snippet-panel .snippet-text {
+    background-color: #f4f4f4;
+    margin: 5px 0 0 0;
+    overflow: auto;
+    padding: 10px 5px;
+    width: 100%;
+}
+
 .nx-actions {
     /**
  * @class NX.view.drilldown.Actions
@@ -8977,18 +9372,24 @@ fieldset.x-fieldset {
 .x-panel-nx-drilldown-message {
     padding-left: 8px !important;
     padding-right: 8px !important;
+    padding-top: 2px !important;
     background-color: #fff;
 }
 
 .x-panel-nx-drilldown-message .x-panel-header {
     padding: 8px;
     border: 1px solid !important;
-    height: 32px;
+    height: fit-content;
     border-radius: 8px;
 }
 
 .x-panel-nx-drilldown-message .x-panel-header img {
     margin-right: 5px !important;
+}
+
+.x-panel-nx-drilldown-message .x-panel-header .x-title-text {
+    overflow: unset;
+    white-space: unset;
 }
 
 .x-panel-nx-drilldown-message.nx-drilldown-warning .x-panel-header {
@@ -10625,42 +11026,114 @@ fieldset.x-fieldset {
     background-color: #fff;
 }
 
+.nx-coreui-component-componentinfo,
 .nx-coreui-component-componentassetinfo {
     /**
- * @class NX.coreui.view.component.ComponentAssetInfo
+ * @class NX.coreui.view.component.ComponentInfo
  */
+    background-color: transparent;
     border-top: 1px solid silver;
+    border-left: 1px solid silver;
 }
 
+.nx-coreui-component-componentinfo > .x-panel-header,
 .nx-coreui-component-componentassetinfo > .x-panel-header {
-    background-color: white;
+    background-color: #fff;
 }
 
+.nx-coreui-component-componentinfo > .x-panel-header *,
 .nx-coreui-component-componentassetinfo > .x-panel-header * {
     font-weight: normal;
     font-family: 'Proxima Nova', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-size: 18px;
     line-height: 20px;
-    color: black;
+    color: #333;
 }
 
-.nx-coreui-component-componentinfo {
-    /**
- * @class NX.coreui.view.component.ComponentInfo
- */
-    border-top: 1px solid silver;
+.nx-coreui-component-componentinfo > .x-panel-header .x-title-text,
+.nx-coreui-component-componentassetinfo > .x-panel-header .x-title-text {
+    display: inline-block;
+    width: 100%;
 }
 
-.nx-coreui-component-componentinfo > .x-panel-header {
-    background-color: white;
+.nx-coreui-component-componentinfo .nx-actions,
+.nx-coreui-component-componentassetinfo .nx-actions {
+    background-color: #fff;
+    border-bottom: solid 1px silver !important;
 }
 
-.nx-coreui-component-componentinfo > .x-panel-header * {
-    font-weight: normal;
-    font-family: 'Proxima Nova', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 18px;
-    line-height: 20px;
-    color: black;
+.nx-coreui-component-componentinfo .x-panel-body-default,
+.nx-coreui-component-componentassetinfo .x-panel-body-default {
+    padding: 0;
+}
+
+.nx-coreui-component-componentinfo .x-panel-nx-inset,
+.nx-coreui-component-componentassetinfo .x-panel-nx-inset {
+    border: none;
+    margin: 12px;
+    padding: 0;
+}
+
+.nx-coreui-component-componentinfo .x-panel-nx-inset .x-panel-header-nx-inset,
+.nx-coreui-component-componentassetinfo .x-panel-nx-inset .x-panel-header-nx-inset {
+    background-color: #ddd;
+}
+
+.nx-coreui-component-componentinfo .x-panel-nx-inset .x-panel-header-nx-inset .x-panel-header-title-nx-inset,
+.nx-coreui-component-componentassetinfo .x-panel-nx-inset .x-panel-header-nx-inset .x-panel-header-title-nx-inset {
+    color: #333;
+}
+
+.nx-coreui-component-componentinfo .x-panel-nx-inset .x-panel-header-nx-inset .x-tool-tool-el,
+.nx-coreui-component-componentassetinfo .x-panel-nx-inset .x-panel-header-nx-inset .x-tool-tool-el {
+    background-color: transparent;
+}
+
+.nx-coreui-component-componentinfo .x-panel-nx-inset .x-panel-header-nx-inset .x-tool-img,
+.nx-coreui-component-componentassetinfo .x-panel-nx-inset .x-panel-header-nx-inset .x-tool-img {
+    opacity: 1;
+}
+
+.nx-coreui-component-componentinfo .x-panel-nx-inset .x-panel-header-nx-inset .x-tool-img:hover,
+.nx-coreui-component-componentassetinfo .x-panel-nx-inset .x-panel-header-nx-inset .x-tool-img:hover {
+    opacity: 0.7;
+}
+
+.nx-coreui-component-componentinfo .x-autocontainer-innerCt > .x-panel-nx-inset.x-panel-collapsed.x-panel-nx-inset-collapsed,
+.nx-coreui-component-componentassetinfo .x-autocontainer-innerCt > .x-panel-nx-inset.x-panel-collapsed.x-panel-nx-inset-collapsed {
+    margin: 12px 12px 0 12px;
+}
+
+.nx-coreui-component-componentinfo .x-panel-nx-inset.x-panel-collapsed.x-panel-nx-inset-collapsed,
+.nx-coreui-component-componentassetinfo .x-panel-nx-inset.x-panel-collapsed.x-panel-nx-inset-collapsed {
+    margin: 12px;
+}
+
+.nx-coreui-component-componentinfo .x-panel-nx-subsection-framed,
+.nx-coreui-component-componentassetinfo .x-panel-nx-subsection-framed {
+    border: none;
+    margin: 0;
+}
+
+.nx-coreui-component-componentinfo .x-grid-body,
+.nx-coreui-component-componentassetinfo .x-grid-body {
+    background-color: #fff;
+}
+
+.nx-coreui-component-componentinfo .x-grid-body .x-grid-group-hd,
+.nx-coreui-component-componentassetinfo .x-grid-body .x-grid-group-hd {
+    background-color: #fff;
+    border: none;
+}
+
+.nx-coreui-component-componentinfo .x-grid-body .x-grid-group-hd .x-grid-group-title,
+.nx-coreui-component-componentassetinfo .x-grid-body .x-grid-group-hd .x-grid-group-title {
+    color: #333;
+}
+
+.nx-coreui-component-componentinfo .x-grid-body .x-grid-item,
+.nx-coreui-component-componentassetinfo .x-grid-body .x-grid-item {
+    background-color: #fff;
 }
 
 .nx-coreui-component-assetattributes .attribute-value {
@@ -10677,6 +11150,91 @@ fieldset.x-fieldset {
  * @class NX.coreui.view.logging.LogViewer
  */
     background-color: #fff !important;
+}
+
+.nx-routing-rules-test-path-container > .x-form-item-body {
+    border: solid 1px #ddd;
+}
+
+.nx-routing-rules-test-path-container.nx-textfield-focused > .x-form-item-body {
+    border-color: #85bee9;
+}
+
+.nx-routing-rules-test-path-container .nx-routing-rules-path-prefix {
+    color: #777;
+    font-size: 1.8em;
+    padding: 4px 0 0 5px;
+    display: inline-block;
+}
+
+.nx-routing-rules-test-path-container .x-form-trigger-wrap {
+    border: none;
+}
+
+.nx-routing-rules-test-path-container input[name=path] {
+    padding-left: 2px;
+}
+
+.nx-mode-common-text {
+    /**
+ * @class NX.coreui.view.routing.RoutingRulesSettingsForm
+ */
+    padding: 5px 0 0 5px;
+}
+
+fieldset.nx-coreui-routing-rules-settings-form-matchers {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+fieldset.nx-coreui-routing-rules-settings-form-matchers .x-fieldset-body {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+fieldset.nx-coreui-routing-rules-settings-form-matchers .nx-matchers-label {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+fieldset.nx-coreui-routing-rules-settings-form-matchers .nx-matchers-help-text {
+    display: block;
+    font-size: 11px;
+    padding: 5px 0;
+}
+
+fieldset.nx-coreui-routing-rules-settings-form-matchers .nx-matcher-remove-button {
+    margin-left: 10px;
+}
+
+.nx-routing-rules-single-preview-field-wrapper .nx-routing-rules-test-result {
+    /**
+ * @class NX.coreui.view.routing.RoutingRulesSinglePreview
+ */
+    align-items: center;
+    color: #1c8145;
+    display: inline-flex;
+    line-height: 2em;
+    justify-content: flex-start;
+}
+
+.nx-routing-rules-single-preview-field-wrapper .nx-routing-rules-test-result span.x-fa {
+    align-items: center;
+    display: inline-flex;
+    font-size: 1.5em;
+    padding-right: 5px;
+}
+
+.nx-routing-rules-single-preview-field-wrapper.blocked .nx-routing-rules-test-result {
+    color: #c70000;
+}
+
+.nx-routing-rules-single-preview-field-wrapper.blocked .nx-routing-rules-test-path-container > .x-form-item-body {
+    border-color: #c70000;
+}
+
+.nx-routing-rules-single-preview-field-wrapper.allowed .nx-routing-rules-test-path-container > .x-form-item-body {
+    border-color: #1c8145;
 }
 
 .nx-coreui-searchfeature .criteria {

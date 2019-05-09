@@ -13,9 +13,9 @@
 package org.sonatype.nexus.repository.pypi.internal;
 
 import java.io.InputStream;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 
 import javax.annotation.Nonnull;
 import javax.inject.Inject;
@@ -24,19 +24,21 @@ import javax.inject.Singleton;
 
 import org.sonatype.nexus.common.template.TemplateHelper;
 import org.sonatype.nexus.repository.Repository;
-import org.sonatype.nexus.repository.group.GroupFacet;
 import org.sonatype.nexus.repository.group.GroupHandler;
 import org.sonatype.nexus.repository.http.HttpResponses;
 import org.sonatype.nexus.repository.http.HttpStatus;
+import org.sonatype.nexus.repository.view.Content;
 import org.sonatype.nexus.repository.view.ContentTypes;
 import org.sonatype.nexus.repository.view.Context;
 import org.sonatype.nexus.repository.view.Payload;
 import org.sonatype.nexus.repository.view.Response;
 import org.sonatype.nexus.repository.view.matchers.token.TokenMatcher;
-import org.sonatype.nexus.repository.view.matchers.token.TokenMatcher.State;
 import org.sonatype.nexus.repository.view.payloads.StringPayload;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.sonatype.nexus.repository.pypi.internal.AssetKind.INDEX;
+import static org.sonatype.nexus.repository.pypi.internal.AssetKind.ROOT_INDEX;
+import static org.sonatype.nexus.repository.pypi.internal.PyPiPathUtils.INDEX_PATH_PREFIX;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiPathUtils.name;
 
 /**
@@ -64,21 +66,47 @@ class IndexGroupHandler
     checkNotNull(context);
     checkNotNull(dispatched);
 
-    GroupFacet groupFacet = context.getRepository().facet(GroupFacet.class);
+    String name;
+    AssetKind assetKind = context.getAttributes().get(AssetKind.class);
+    if (ROOT_INDEX.equals(assetKind)) {
+      name = INDEX_PATH_PREFIX;
+    }
+    else {
+      name = name(context.getAttributes().require(TokenMatcher.State.class));
+    }
 
-    Map<String, String> results = new LinkedHashMap<>();
-    for (Entry<Repository, Response> entry : getAll(context, groupFacet.members(), dispatched).entrySet()) {
+    PyPiGroupFacet groupFacet = context.getRepository().facet(PyPiGroupFacet.class);
+    Content content = groupFacet.getFromCache(name, assetKind);
+
+    Map<Repository, Response> memberResponses = getAll(context, groupFacet.members(), dispatched);
+
+    if (groupFacet.isStale(name, content, memberResponses)) {
+      String html = mergeResponses(name, assetKind, memberResponses);
+      Content newContent = new Content(new StringPayload(html, ContentTypes.TEXT_HTML));
+      return HttpResponses.ok(groupFacet.saveToCache(name, newContent));
+    }
+
+    return HttpResponses.ok(content);
+  }
+
+  private String mergeResponses(final String name,
+                                final AssetKind assetKind,
+                                final Map<Repository, Response> remoteResponses) throws Exception
+  {
+    Map<String, String> results = new TreeMap<>();
+    for (Entry<Repository, Response> entry : remoteResponses.entrySet()) {
       Response response = entry.getValue();
       if (response.getStatus().getCode() == HttpStatus.OK && response.getPayload() != null) {
         processResults(response, results);
       }
     }
 
-    State state = context.getAttributes().require(TokenMatcher.State.class);
-    String name = name(state);
-
-    String html = PyPiIndexUtils.buildIndexPage(templateHelper, name, results);
-    return HttpResponses.ok(new StringPayload(html, ContentTypes.TEXT_HTML));
+    if (INDEX.equals(assetKind)) {
+      return PyPiIndexUtils.buildIndexPage(templateHelper, name, results);
+    }
+    else {
+      return PyPiIndexUtils.buildRootIndexPage(templateHelper, results);
+    }
   }
 
   /**

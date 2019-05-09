@@ -108,6 +108,10 @@ Ext.define('NX.coreui.controller.Blobstores', {
         },
         'nx-coreui-blobstore-settings-form': {
           submitted: me.loadStores
+        },
+        //Note that this component is from the Task UI
+        'combobox[name=property_fromGroup]': {
+          change: me.fromGroupChanged
         }
       }
     });
@@ -219,23 +223,27 @@ Ext.define('NX.coreui.controller.Blobstores', {
         form = button.up('form'),
         values = form.getValues();
 
-    me.getContent().getEl().mask(NX.I18n.get('Blobstores_Update_Mask'));
-    NX.direct.coreui_Blobstore.update(values, function(response) {
-      me.getContent().getEl().unmask();
-      if (Ext.isObject(response)) {
-        if (response.success) {
-          NX.Messages.add({
-            text: NX.I18n.format('Blobstores_Update_Success',
-                me.getDescription(me.getBlobstoreModel().create(response.data))),
-            type: 'success'
-          });
-          me.getStore('Blobstore').load();
+    NX.Dialogs.askConfirmation(NX.I18n.get('Blobstore_BlobstoreFeature_Update_Title'),
+                               NX.I18n.get('Blobstore_BlobstoreFeature_Update_Warning'),
+                               function () {
+      me.getContent().getEl().mask(NX.I18n.get('Blobstores_Update_Mask'));
+      NX.direct.coreui_Blobstore.update(values, function(response) {
+        me.getContent().getEl().unmask();
+        if (Ext.isObject(response)) {
+          if (response.success) {
+            NX.Messages.add({
+              text: NX.I18n.format('Blobstores_Update_Success',
+                  me.getDescription(me.getBlobstoreModel().create(response.data))),
+              type: 'success'
+            });
+            me.getStore('Blobstore').load();
+          }
+          else if (Ext.isDefined(response.errors)) {
+            form.markInvalid(response.errors);
+          }
         }
-        else if (Ext.isDefined(response.errors)) {
-          form.markInvalid(response.errors);
-        }
-      }
-    });
+      });
+    }, {scope: me});
   },
 
   /**
@@ -335,5 +343,16 @@ Ext.define('NX.coreui.controller.Blobstores', {
           }
         }
     );
+  },
+
+  fromGroupChanged: function(groupComboBox, newVal, old) {
+    var members = groupComboBox.up().query('[name=property_memberToRemove]')[0];
+    var selectedGroup = groupComboBox.getStore().getById(newVal);
+    var data = Ext.Array.map(selectedGroup.data.attributes.group.members, function(m) {return {name: m, id: m};});
+    members.setValue(null);
+    members.getStore().setData(data);
+    if(!old) {
+      members.reset();
+    }
   }
 });

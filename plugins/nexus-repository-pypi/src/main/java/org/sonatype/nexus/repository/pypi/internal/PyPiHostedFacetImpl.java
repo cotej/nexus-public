@@ -12,16 +12,19 @@
  */
 package org.sonatype.nexus.repository.pypi.internal;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-import org.sonatype.nexus.common.collect.NestedAttributesMap;
 import org.sonatype.nexus.common.collect.AttributesMap;
+import org.sonatype.nexus.common.collect.NestedAttributesMap;
 import org.sonatype.nexus.common.hash.HashAlgorithm;
 import org.sonatype.nexus.common.template.TemplateHelper;
 import org.sonatype.nexus.repository.FacetSupport;
@@ -29,9 +32,11 @@ import org.sonatype.nexus.repository.IllegalOperationException;
 import org.sonatype.nexus.repository.storage.Asset;
 import org.sonatype.nexus.repository.storage.Bucket;
 import org.sonatype.nexus.repository.storage.Component;
+import org.sonatype.nexus.repository.storage.StorageFacet;
 import org.sonatype.nexus.repository.storage.StorageTx;
 import org.sonatype.nexus.repository.storage.TempBlob;
 import org.sonatype.nexus.repository.transaction.TransactionalStoreBlob;
+import org.sonatype.nexus.repository.transaction.TransactionalStoreMetadata;
 import org.sonatype.nexus.repository.transaction.TransactionalTouchBlob;
 import org.sonatype.nexus.repository.view.Content;
 import org.sonatype.nexus.repository.view.payloads.StringPayload;
@@ -42,20 +47,25 @@ import org.sonatype.nexus.transaction.UnitOfWork;
 import com.google.common.hash.HashCode;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.sonatype.nexus.common.hash.HashAlgorithm.MD5;
+import static org.sonatype.nexus.repository.pypi.internal.AssetKind.ROOT_INDEX;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiAttributes.P_NAME;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiAttributes.P_SUMMARY;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiAttributes.P_VERSION;
+import static org.sonatype.nexus.repository.pypi.internal.PyPiDataUtils.HASH_ALGORITHMS;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiDataUtils.findAsset;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiDataUtils.findAssetsByComponentName;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiDataUtils.findComponent;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiDataUtils.findComponentExists;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiDataUtils.saveAsset;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiDataUtils.toContent;
+import static org.sonatype.nexus.repository.pypi.internal.PyPiPathUtils.INDEX_PATH_PREFIX;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiPathUtils.normalizeName;
 import static org.sonatype.nexus.repository.pypi.internal.PyPiPathUtils.packagesPath;
 import static org.sonatype.nexus.repository.storage.AssetEntityAdapter.P_ASSET_KIND;
 import static org.sonatype.nexus.repository.view.Content.CONTENT_ETAG;
+import static org.sonatype.nexus.repository.view.ContentTypes.TEXT_HTML;
 
 /**
  * {@link PyPiHostedFacet} implementation.
@@ -75,8 +85,66 @@ public class PyPiHostedFacetImpl
   }
 
   @Override
+  @TransactionalStoreBlob
+  @Nullable
+  public Content getRootIndex() {
+    StorageTx tx = UnitOfWork.currentTx();
+    Bucket bucket = tx.findBucket(getRepository());
+
+    Asset asset = findAsset(tx, bucket, INDEX_PATH_PREFIX);
+    if (asset == null) {
+      try {
+        return createAndSaveRootIndex(bucket);
+      }
+      catch (IOException e) {
+        log.error("Unable to create root index for repository: {}", getRepository().getName(), e);
+        return null;
+      }
+    }
+
+    return toContent(asset, tx.requireBlob(asset.requireBlobRef()));
+  }
+
+  private Content createAndSaveRootIndex(final Bucket bucket) throws IOException {
+    StorageTx tx = UnitOfWork.currentTx();
+    Map<String, String> links = findAllLinks();
+
+    Asset asset = createRootIndexAsset(bucket);
+
+    String rootIndexHtml = PyPiIndexUtils.buildRootIndexPage(templateHelper, links);
+    return storeHtmlPage(tx, asset, rootIndexHtml);
+  }
+
+  @TransactionalStoreMetadata
+  protected Asset createRootIndexAsset(final Bucket bucket) {
+    StorageTx tx = UnitOfWork.currentTx();
+    Asset asset = tx.createAsset(bucket, getRepository().getFormat());
+    asset.name(INDEX_PATH_PREFIX);
+    asset.formatAttributes().set(P_ASSET_KIND, ROOT_INDEX.name());
+    return asset;
+  }
+
   @Transactional
-  public Content getIndex(final String name) {
+  protected Map<String, String> findAllLinks() {
+    StorageTx tx = UnitOfWork.currentTx();
+    Map<String, String> links = new TreeMap<>();
+    Iterable<Component> components = tx.browseComponents(tx.findBucket(getRepository()));
+    components.forEach((component) -> links.put(component.name(), component.name() + "/"));
+    return links;
+  }
+
+  @TransactionalStoreBlob
+  protected Content storeHtmlPage(final StorageTx tx, final Asset asset, final String indexPage) throws IOException
+  {
+    StorageFacet storageFacet = facet(StorageFacet.class);
+    try (TempBlob tempBlob = storageFacet.createTempBlob(new StringPayload(indexPage, TEXT_HTML), PyPiDataUtils.HASH_ALGORITHMS)) {
+      return saveAsset(tx, asset, tempBlob, TEXT_HTML, null);
+    }
+  }
+
+  @Override
+  @TransactionalStoreBlob
+  public Content getIndex(final String name) throws IOException {
     checkNotNull(name);
     StorageTx tx = UnitOfWork.currentTx();
 
@@ -85,6 +153,37 @@ public class PyPiHostedFacetImpl
       return null;
     }
 
+    String indexPath = PyPiPathUtils.indexPath(name);
+    Bucket bucket = tx.findBucket(getRepository());
+    Asset savedIndex = findAsset(tx, bucket, indexPath);
+
+    if (savedIndex == null) {
+      savedIndex = createIndexAsset(name, tx, indexPath, bucket);
+    }
+
+    return toContent(savedIndex, tx.requireBlob(savedIndex.requireBlobRef()));
+  }
+
+  private Asset createIndexAsset(final String name,
+                                 final StorageTx tx,
+                                 final String indexPath,
+                                 final Bucket bucket) throws IOException
+  {
+    String html = buildIndex(name, tx);
+
+    Asset savedIndex = tx.createAsset(bucket, getRepository().getFormat());
+    savedIndex.name(indexPath);
+    savedIndex.formatAttributes().set(P_ASSET_KIND, AssetKind.INDEX.name());
+
+    StorageFacet storageFacet = getRepository().facet(StorageFacet.class);
+    TempBlob tempBlob = storageFacet.createTempBlob(new ByteArrayInputStream(html.getBytes(UTF_8)), HASH_ALGORITHMS);
+
+    saveAsset(tx, savedIndex, tempBlob, TEXT_HTML, new AttributesMap());
+
+    return savedIndex;
+  }
+
+  private String buildIndex(final String name, final StorageTx tx) {
     Map<String, String> links = new LinkedHashMap<>();
     for (Asset asset : findAssetsByComponentName(tx, getRepository(), name)) {
       String path = asset.name();
@@ -93,8 +192,7 @@ public class PyPiHostedFacetImpl
       links.put(file, link);
     }
 
-    String html = PyPiIndexUtils.buildIndexPage(templateHelper, name, links);
-    return new Content(new StringPayload(html, "text/html"));
+    return PyPiIndexUtils.buildIndexPage(templateHelper, name, links);
   }
 
   @Override
@@ -106,9 +204,6 @@ public class PyPiHostedFacetImpl
     Asset asset = findAsset(tx, tx.findBucket(getRepository()), packagePath);
     if (asset == null) {
       return null;
-    }
-    if (asset.markAsDownloaded()) {
-      tx.saveAsset(asset);
     }
     Content content = toContent(asset, tx.requireBlob(asset.requireBlobRef()));
     mayAddEtag(content.getAttributes(), asset.getChecksum(HashAlgorithm.SHA1));
@@ -134,13 +229,6 @@ public class PyPiHostedFacetImpl
 
     TempBlob tempBlob = payload.getTempBlob();
 
-    // We extract the metadata from the blobs to get access to the original name of the package.
-    // Note that not all format/packaging types provide this information
-    // Names that contain an underscore are pre-normalized at build time when packaged as either wheel/egg format therefore
-    // the original name is lost. All other combinations at the time of testing contain the original name in the metadata.
-    Map<String, String> attributesFromBlob = PyPiInfoUtils.extractMetadata(tempBlob.getBlob().getInputStream());
-    attributes.putAll(attributesFromBlob);
-
     final String name = checkNotNull(attributes.get(P_NAME));
     final String version = checkNotNull(attributes.get(P_VERSION));
     final String normalizedName = normalizeName(name);
@@ -155,6 +243,10 @@ public class PyPiHostedFacetImpl
       }
     }
 
+    PyPiIndexFacet indexFacet = facet(PyPiIndexFacet.class);
+    // A package has been added or redeployed and therefore the cached index is no longer relevant
+    indexFacet.deleteIndex(name);
+    
     StorageTx tx = UnitOfWork.currentTx();
     Bucket bucket = tx.findBucket(getRepository());
 
@@ -176,6 +268,9 @@ public class PyPiHostedFacetImpl
       component = tx.createComponent(bucket, getRepository().getFormat()).name(normalizedName).version(version);
       setComponentName(component.formatAttributes(), name);
       component.formatAttributes().set(P_VERSION, version);
+
+      //A new component so we will need to regenerate the root index
+      indexFacet.deleteRootIndex();
     }
 
     component.formatAttributes().set(P_SUMMARY, attributes.get(P_SUMMARY)); // use the most recent summary received?
@@ -197,6 +292,8 @@ public class PyPiHostedFacetImpl
   /**
    * We supply all variants of the name. According to pep-503 '-', '.' and '_' are to be treated equally.
    * This allows searching for this component to be found using any combination of the substituted characters.
+   * When using only this technique and not parsing the actual metadata stored in the package, the original name
+   * (if it contained multiple special characters) would not be accounted for in search.
    * @param attributes associated with the component
    * @param name of the component to be saved
    */

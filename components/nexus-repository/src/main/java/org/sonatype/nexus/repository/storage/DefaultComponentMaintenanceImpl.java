@@ -14,10 +14,11 @@ package org.sonatype.nexus.repository.storage;
 
 
 import java.util.Collections;
-import java.util.function.BooleanSupplier;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
+import javax.annotation.Nullable;
 import javax.inject.Named;
 
 import org.sonatype.nexus.common.entity.EntityId;
@@ -57,7 +58,7 @@ public class DefaultComponentMaintenanceImpl
     checkNotNull(componentId);
     UnitOfWork.begin(getRepository().facet(StorageFacet.class).txSupplier());
     try {
-      return deleteComponentTx(componentId, deleteBlobs);
+      return deleteComponentTx(componentId, deleteBlobs).getAssets();
     }
     finally {
       UnitOfWork.end();
@@ -65,14 +66,14 @@ public class DefaultComponentMaintenanceImpl
   }
 
   @TransactionalDeleteBlob
-  protected Set<String> deleteComponentTx(final EntityId componentId, final boolean deleteBlobs) {
+  protected DeletionResult deleteComponentTx(final EntityId componentId, final boolean deleteBlobs) {
     StorageTx tx = UnitOfWork.currentTx();
     Component component = tx.findComponentInBucket(componentId, tx.findBucket(getRepository()));
     if (component == null) {
-      return Collections.emptySet();
+      return new DeletionResult(null, Collections.emptySet());
     }
     log.debug("Deleting component: {}", component.toStringExternal());
-    return tx.deleteComponent(component, deleteBlobs);
+    return new DeletionResult(component, tx.deleteComponent(component, deleteBlobs));
   }
 
   /**
@@ -98,15 +99,16 @@ public class DefaultComponentMaintenanceImpl
   }
 
   @Override
-  public long deleteComponents(final Iterable<EntityId> components,
-                               final BooleanSupplier cancelledCheck,
-                               final int batchSize) 
+  public DeletionProgress deleteComponents(final Iterable<EntityId> components,
+                                           final BooleanSupplier cancelledCheck,
+                                           final int batchSize)
   {
     checkNotNull(components);
     checkNotNull(cancelledCheck);
 
     UnitOfWork.beginBatch(getRepository().facet(StorageFacet.class).txSupplier());
-    long count = 0L;
+
+    DeletionProgress deletionProgress = new DeletionProgress();
 
     try {
       Iterable<List<EntityId>> split = partition(components, batchSize);
@@ -116,38 +118,60 @@ public class DefaultComponentMaintenanceImpl
           break;
         }
 
-        count += doBatchDelete(entityIds, cancelledCheck);
+        DeletionProgress batchDeletion = doBatchDelete(entityIds, cancelledCheck);
+        deletionProgress.addCount(batchDeletion.getCount());
+        if (batchDeletion.isFailed()) {
+          deletionProgress.setFailed(true);
+          break;
+        }
       }
     }
     finally {
       UnitOfWork.end();
     }
 
-    after();
+    tryAfter();
 
-    return count;
+    return deletionProgress;
+  }
+
+  private void tryAfter() {
+    try {
+      after();
+    }
+    catch (Exception e) {
+      log.debug("Unable to run post-cleanup tasks. This could result in missing or incorrect metadata", e);
+    }
   }
 
   @TransactionalDeleteBlob
-  protected long deleteComponentBatch(final Iterable<EntityId> components, final BooleanSupplier cancelledCheck) {
-    long count = 0L;
+  protected DeletionProgress deleteComponentBatch(final Iterable<EntityId> components, final BooleanSupplier cancelledCheck) {
+    DeletionProgress deletionProgress = new DeletionProgress();
 
-    for (EntityId component : components) {
-      if (!cancelledCheck.getAsBoolean()) {
-        try {
-          deleteComponentTx(component, true);
+    try {
+      for (EntityId component : components) {
+        if (!cancelledCheck.getAsBoolean()) {
+          try {
+            DeletionResult deletionResult = deleteComponentTx(component, true);
 
-          log.debug("Component with ID '{}' deleted from repository {}", component, getRepository());
+            if (deletionResult.getComponent() != null) {
+              log.info("Deleted component with ID '{}', Attributes '{}' and Assets '{}' from repository {}", component,
+                  deletionResult.getComponent().toStringExternal(), deletionResult.getAssets(), getRepository());
+            }
 
-          count++;
-        }
-        catch (Exception e ) {
-          log.debug("Unable to delete component with ID {}", component, e);
+            deletionProgress.addCount(1);
+          }
+          catch (Exception e) {
+            log.debug("Unable to delete component with ID {}", component, e);
+          }
         }
       }
     }
-
-    return count;
+    catch (Exception e) {
+      log.warn("Unable to delete current batch", e);
+      deletionProgress.setFailed(true);
+    }
+    return deletionProgress;
   }
 
   @TransactionalDeleteBlob
@@ -162,12 +186,87 @@ public class DefaultComponentMaintenanceImpl
     return Collections.singleton(asset.name());
   }
 
-  protected long doBatchDelete(final List<EntityId> entityIds, final BooleanSupplier cancelledCheck) {
+  protected DeletionProgress doBatchDelete(final List<EntityId> entityIds, final BooleanSupplier cancelledCheck) {
     return deleteComponentBatch(entityIds, cancelledCheck);
   }
 
   @Override
   public void after() {
     //no op
+  }
+
+  protected static class DeletionResult
+  {
+    @Nullable
+    private final Component component;
+
+    private final Set<String> assets;
+
+    public DeletionResult(@Nullable final Component component, final Set<String> assets) {
+      this.component = component;
+      this.assets = checkNotNull(assets);
+    }
+
+    @Nullable
+    public Component getComponent() {
+      return component;
+    }
+
+    public Set<String> getAssets() {
+      return assets;
+    }
+  }
+
+  public static class DeletionProgress {
+    private long count = 0L;
+
+    private boolean failed;
+
+    private int attempts = 0;
+
+    private int retryLimit = 0;
+
+    public DeletionProgress() {
+    }
+
+    public DeletionProgress(final int retryLimit) {
+      this.retryLimit = retryLimit;
+    }
+
+    public long getCount() {
+      return count;
+    }
+
+    public void addCount(final long count) {
+      this.count += count;
+    }
+
+    public boolean isFailed() {
+      return failed;
+    }
+
+    public void setFailed(final boolean completed) {
+      this.failed = completed;
+    }
+
+    public int getAttempts() {
+      return attempts;
+    }
+
+    public void setAttempts(final int attempts) {
+      this.attempts = attempts;
+    }
+
+    public void update(final DeletionProgress progress) {
+      failed = progress.isFailed();
+      count += progress.getCount();
+      if (progress.isFailed()) {
+        attempts++;
+      }
+    }
+
+    public boolean isFinished() {
+      return !isFailed() || getAttempts() >= retryLimit;
+    }
   }
 }

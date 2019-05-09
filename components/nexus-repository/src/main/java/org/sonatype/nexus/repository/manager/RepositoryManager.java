@@ -12,13 +12,14 @@
  */
 package org.sonatype.nexus.repository.manager;
 
-import java.util.Set;
-
+import java.util.Collection;
+import java.util.List;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
 import org.sonatype.goodies.lifecycle.Lifecycle;
+import org.sonatype.nexus.repository.Recipe;
 import org.sonatype.nexus.repository.Repository;
 import org.sonatype.nexus.repository.config.Configuration;
 
@@ -52,7 +53,9 @@ public interface RepositoryManager
 
   long blobstoreUsageCount(String blobStoreName);
 
-  Set<String> findContainingGroups(String name);
+  List<String> findContainingGroups(String repositoryName);
 
   Stream<Repository> browseForCleanupPolicy(final String cleanupPolicyName);
+
+  Collection<Recipe> getAllSupportedRecipes();
 }

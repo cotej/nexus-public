@@ -15,6 +15,7 @@ package org.sonatype.nexus.blobstore.restore.pypi.internal;
 import java.io.IOException;
 import java.util.List;
 
+import javax.annotation.Nonnull;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -28,7 +29,9 @@ import org.sonatype.nexus.common.node.NodeAccess;
 import org.sonatype.nexus.repository.Repository;
 import org.sonatype.nexus.repository.manager.RepositoryManager;
 import org.sonatype.nexus.repository.pypi.PyPiFacet;
+import org.sonatype.nexus.repository.pypi.repair.PyPiRepairIndexComponent;
 import org.sonatype.nexus.repository.storage.AssetBlob;
+import org.sonatype.nexus.repository.storage.Query;
 import org.sonatype.nexus.repository.transaction.TransactionalStoreMetadata;
 import org.sonatype.nexus.transaction.Transactional;
 
@@ -37,6 +40,9 @@ import com.google.common.collect.ImmutableList;
 import static org.sonatype.nexus.common.hash.HashAlgorithm.MD5;
 import static org.sonatype.nexus.common.hash.HashAlgorithm.SHA1;
 import static org.sonatype.nexus.common.hash.HashAlgorithm.SHA256;
+import static org.sonatype.nexus.repository.pypi.PyPiRestoreUtil.isIndex;
+import static org.sonatype.nexus.repository.storage.ComponentEntityAdapter.P_VERSION;
+import static org.sonatype.nexus.repository.storage.MetadataNodeEntityAdapter.P_NAME;
 
 /**
  * @since 3.14
@@ -46,18 +52,26 @@ import static org.sonatype.nexus.common.hash.HashAlgorithm.SHA256;
 public class PyPiRestoreBlobStrategy
     extends BaseRestoreBlobStrategy<PyPiRestoreBlobData>
 {
+  private final PyPiRepairIndexComponent pyPiRepairIndexComponent;
+
+  private final PyPiRestoreBlobDataFactory pyPiRestoreBlobDataFactory;
+
   @Inject
   public PyPiRestoreBlobStrategy(final NodeAccess nodeAccess,
                                  final RepositoryManager repositoryManager,
                                  final BlobStoreManager blobStoreManager,
-                                 final DryRunPrefix dryRunPrefix)
+                                 final DryRunPrefix dryRunPrefix,
+                                 final PyPiRepairIndexComponent pyPiRepairIndexComponent,
+                                 final PyPiRestoreBlobDataFactory pyPiRestoreBlobDataFactory)
   {
     super(nodeAccess, repositoryManager, blobStoreManager, dryRunPrefix);
+    this.pyPiRepairIndexComponent = pyPiRepairIndexComponent;
+    this.pyPiRestoreBlobDataFactory = pyPiRestoreBlobDataFactory;
   }
 
   @Override
   protected PyPiRestoreBlobData createRestoreData(final RestoreBlobData blobData) {
-    return new PyPiRestoreBlobData(blobData);
+    return pyPiRestoreBlobDataFactory.create(blobData);
   }
 
   @Override
@@ -89,6 +103,42 @@ public class PyPiRestoreBlobStrategy
       throws IOException
   {
     data.getBlobData().getRepository().facet(PyPiFacet.class).put(getAssetPath(data), assetBlob);
+  }
+
+  @Override
+  protected boolean componentRequired(@Nonnull final PyPiRestoreBlobData data) throws IOException {
+    return !isIndex(getAssetPath(data));
+  }
+
+  @Override
+  protected Query getComponentQuery(@Nonnull final PyPiRestoreBlobData data) {
+    return Query.builder()
+        .where(P_NAME).eq(data.getBlobData().getBlobName())
+        .and(P_VERSION).eq(data.getVersion())
+        .build();
+  }
+
+  @Override
+  protected Repository getRepository(@Nonnull final PyPiRestoreBlobData data) {
+    return data.getBlobData().getRepository();
+  }
+
+  @Override
+  protected boolean shouldDeleteAsset(final PyPiRestoreBlobData restoreData,
+                                      final RestoreBlobData blobData,
+                                      final String path) throws IOException
+  {
+    return isIndex(getAssetPath(restoreData)) || super.shouldDeleteAsset(restoreData, blobData, path);
+  }
+
+  @Override
+  public void after(final boolean updateAssets, final Repository repository) {
+    if (updateAssets) {
+      pyPiRepairIndexComponent.repairRepository(repository);
+    }
+    else {
+      log.info("Updating assets disabled so not running repair of PyPi package metadata");
+    }
   }
 
   @Override

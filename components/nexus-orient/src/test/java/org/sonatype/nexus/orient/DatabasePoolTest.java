@@ -119,8 +119,8 @@ public class DatabasePoolTest
 
   @Test
   public void exceedingPerCoreConnectionLimitBlocks() throws Exception {
-    int numWorkers = NUM_CORES * 8; // must be large enough to hit all (hashed) partitions
-    int perCoreLimit = 2;
+    int numWorkers = NUM_CORES * 8; // set high to try and hit all (hashed) partitions
+    int perCoreLimit = 2; // deliberately set low as we want to test overflow condition
 
     // one partition per-core, plus one overflow partition
     int maximumPoolSize = (NUM_CORES + 1) * perCoreLimit;
@@ -139,8 +139,12 @@ public class DatabasePoolTest
       // wait for pool to reach its maximum size
       await().until(pool::getPoolSize, is(maximumPoolSize));
 
-      // check all the other threads are waiting
-      await().until(() -> countWaitingThreads(workers), is(numWorkers - maximumPoolSize));
+      // check all the other threads are waiting; allow for the fact that a few connections
+      // could still be available since hash distribution may not fully cover all partitions
+      // depending on the number of cores
+
+      int expectedWaiterCount = numWorkers - (maximumPoolSize - pool.getAvailableCount());
+      await().until(() -> countWaitingThreads(workers), is(expectedWaiterCount));
     }
     finally {
       manager.stop();

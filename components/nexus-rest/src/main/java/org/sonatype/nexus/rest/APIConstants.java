@@ -22,7 +22,5 @@ public class APIConstants
   private APIConstants() {
   }
 
-  public static final String BETA_API_PREFIX = "/beta";
-
   public static final String V1_API_PREFIX = "/v1";
 }

@@ -14,6 +14,7 @@ package org.sonatype.nexus.repository.npm;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.Optional;
 import java.util.Set;
 
@@ -97,8 +98,10 @@ public class NpmUploadHandlerTest
   @Captor
   private ArgumentCaptor<VariableSource> captor;
 
+  private File packageJson;
+
   @Before
-  public void setup() throws IOException {
+  public void setup() throws IOException, URISyntaxException {
     when(contentPermissionChecker.isPermitted(eq(REPO_NAME), eq(NpmFormat.NAME), eq(BreadActions.EDIT), any()))
         .thenReturn(true);
 
@@ -106,12 +109,10 @@ public class NpmUploadHandlerTest
         new NpmPackageParser(), emptySet());
     when(repository.facet(NpmHostedFacet.class)).thenReturn(npmFacet);
 
+    packageJson = new File(NpmUploadHandlerTest.class.getResource("internal/package.json").toURI());
     when(storageFacet.createTempBlob(any(PartPayload.class), any())).thenAnswer(invocation -> {
       TempBlob blob = mock(TempBlob.class);
-
-      File srcFile = new File(NpmUploadHandlerTest.class.getResource("internal/package.json").toURI());
-
-      when(blob.get()).thenAnswer(i -> ArchiveUtils.pack(tempFolder.newFile(), srcFile, "package/package.json"));
+      when(blob.get()).thenAnswer(i -> ArchiveUtils.pack(tempFolder.newFile(), packageJson, "package/package.json"));
       return blob;
     });
 
@@ -164,7 +165,7 @@ public class NpmUploadHandlerTest
 
     assertThat(source.getVariableSet(), hasSize(5));
     assertThat(source.get("format"), is(Optional.of(NpmFormat.NAME)));
-    assertThat(source.get("path"), is(Optional.of("/@foo/bar/-/bar-1.5.3.tgz")));
+    assertThat(source.get("path"), is(Optional.of("@foo/bar/-/bar-1.5.3.tgz")));
     assertThat(source.get("coordinate.packageScope"), is(Optional.of("foo")));
     assertThat(source.get("coordinate.packageName"), is(Optional.of("bar")));
     assertThat(source.get("coordinate.version"), is(Optional.of("1.5.3")));
@@ -188,6 +189,41 @@ public class NpmUploadHandlerTest
       assertThat(e.getValidationErrors().size(), is(1));
       assertThat(e.getValidationErrors().get(0).getMessage(), is("Not authorized for requested path '@foo/bar/-/bar-1.5.3.tgz'"));
     }
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testHandlePathWithDotInScope() throws IOException, URISyntaxException {
+    handlePath("package-path-with-dot-in-scope.json");
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testHandlePathWithDotInName() throws IOException, URISyntaxException {
+    handlePath("package-path-with-dot-in-name.json");
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testHandlePathWithUnderscoreInScope() throws IOException, URISyntaxException {
+    handlePath("package-path-with-underscore-in-scope.json");
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testHandlePathWithUnderscoreInName() throws IOException, URISyntaxException {
+    handlePath("package-path-with-underscore-in-name.json");
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testHandlePathWithDots() throws IOException, URISyntaxException {
+    handlePath("package-path-with-dots.json");
+  }
+
+  private void handlePath(String jsonFile) throws IOException, URISyntaxException {
+    packageJson = new File(NpmUploadHandlerTest.class.getResource("internal/" + jsonFile).toURI());
+
+    ComponentUpload component = new ComponentUpload();
+    AssetUpload assetUpload = new AssetUpload();
+    assetUpload.setPayload(payload);
+    component.getAssetUploads().add(assetUpload);
+    underTest.handle(repository, component);
   }
 
   private Set<UploadDefinitionExtension> getDefinitionExtensions() {

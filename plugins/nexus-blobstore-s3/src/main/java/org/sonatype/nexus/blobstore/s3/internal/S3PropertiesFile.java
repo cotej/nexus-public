@@ -16,16 +16,17 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Properties;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.sonatype.nexus.common.property.ImplicitSourcePropertiesFile;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.String.format;
 
 /**
  * Persistent properties file stored in AWS S3.
@@ -33,7 +34,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * @since 3.6.1
  */
 public class S3PropertiesFile
-    extends Properties
+    extends ImplicitSourcePropertiesFile
 {
   private static final Logger log = LoggerFactory.getLogger(S3PropertiesFile.class);
 
@@ -80,10 +81,7 @@ public class S3PropertiesFile
   }
 
   public String toString() {
-    return getClass().getSimpleName() + "{" +
-        "bucket=" + bucket +
-        ", key=" + key +
-        '}';
+    return format("s3://%s/%s %s", bucket, key, super.toString());
   }
 
   @Override

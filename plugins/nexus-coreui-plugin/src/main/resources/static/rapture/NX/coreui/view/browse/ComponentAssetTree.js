@@ -22,7 +22,10 @@ Ext.define('NX.coreui.view.browse.ComponentAssetTree', {
   alias: 'widget.nx-coreui-component-asset-tree',
   requires: [
     'NX.I18n',
-    'NX.State'
+    'NX.State',
+    'NX.coreui.view.component.ComponentInfo',
+    'NX.coreui.view.component.ComponentAssetInfo',
+    'NX.coreui.view.component.ComponentFolderInfo'
   ],
 
   /**
@@ -49,17 +52,54 @@ Ext.define('NX.coreui.view.browse.ComponentAssetTree', {
           emptyText: NX.I18n.get('Component_Asset_Tree_EmptyText_View'),
           deferEmptyText: false
         }
+      },
+      {
+        xtype: 'nx-coreui-component-componentinfo',
+        iconCls: 'nx-icon-tree-component-x16',
+        flex: 2,
+        visible: false
+      },
+      {
+        xtype: 'nx-coreui-component-componentassetinfo',
+        flex: 2,
+        iconCls: 'nx-icon-tree-asset-x16',
+        visible: false
+      },
+      {
+        xtype: 'nx-coreui-component-componentfolderinfo',
+        iconCls: 'nx-icon-tree-folder-x16',
+        flex: 2,
+        visible: false
       }],
       dockedItems: [{
-        xtype: 'nx-actions',
-        dock: 'top',
+        xtype: 'panel',
         items: [{
+          xtype: 'panel',
+          itemId: 'info',
+          ui: 'nx-drilldown-message',
+          cls: 'nx-drilldown-info',
+          iconCls: NX.Icons.cls('drilldown-info', 'x16'),
+          hidden: true
+        },
+        {
+          xtype: 'panel',
+          itemId: 'warning',
+          ui: 'nx-drilldown-message',
+          cls: 'nx-drilldown-warning',
+          iconCls: NX.Icons.cls('drilldown-warning', 'x16'),
+          hidden: true
+        },
+        {
+          xtype: 'nx-actions',
+          dock: 'top',
+          items: [{
             xtype: 'button',
             text: NX.I18n.get('Component_Asset_Tree_Upload_Component'),
             glyph: 'xf093@FontAwesome' /* fa-upload */,
             action: 'upload',
             hidden: true
-          },{
+          },
+          {
             xtype: 'label',
             itemId: 'nx-coreui-component-asset-tree-html-view',
             html: NX.util.Url.asLink("", NX.I18n.get('Component_Asset_Tree_Html_View'), '_blank')
@@ -70,11 +110,13 @@ Ext.define('NX.coreui.view.browse.ComponentAssetTree', {
             emptyText: NX.I18n.get('Grid_Plugin_FilterBox_Empty'),
             searchDelay: 200,
             width: 200
-          },{
+          },
+          {
             xtype: 'label',
             itemId: 'nx-coreui-component-asset-tree-advanced-search',
             html: '<a href="#browse/search">Advanced search...</a>'
           }]
+        }]
       }]
     });
 

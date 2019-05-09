@@ -57,7 +57,10 @@ class PyPiProxyRecipe
   NegativeCacheHandler negativeCacheHandler
 
   @Inject
-  Provider<PyPiHostedComponentMaintenance> componentMaintenanceFacet
+  Provider<PyPiComponentMaintenance> componentMaintenanceFacet
+
+  @Inject
+  Provider<PyPiIndexFacet> indexFacet
 
   @Inject
   Provider<PurgeUnusedFacet> purgeUnusedFacet
@@ -78,6 +81,7 @@ class PyPiProxyRecipe
     repository.attach(negativeCacheFacet.get())
     repository.attach(pyPiFacet.get())
     repository.attach(componentMaintenanceFacet.get())
+    repository.attach(indexFacet.get())
     repository.attach(proxyFacet.get())
     repository.attach(storageFacet.get())
     repository.attach(searchFacet.get())
@@ -95,12 +99,29 @@ class PyPiProxyRecipe
         .handler(timingHandler)
         .handler(assetKindHandler.rcurry(AssetKind.INDEX))
         .handler(securityHandler)
+        .handler(routingHandler)
         .handler(exceptionHandler)
         .handler(negativeCacheHandler)
         .handler(conditionalRequestHandler)
         .handler(partialFetchHandler)
         .handler(contentHeadersHandler)
         .handler(unitOfWorkHandler)
+        .handler(lastDownloadedHandler)
+        .handler(proxyHandler)
+        .create())
+
+    builder.route(rootIndexMatcher()
+        .handler(timingHandler)
+        .handler(assetKindHandler.rcurry(AssetKind.ROOT_INDEX))
+        .handler(securityHandler)
+        .handler(routingHandler)
+        .handler(exceptionHandler)
+        .handler(negativeCacheHandler)
+        .handler(conditionalRequestHandler)
+        .handler(partialFetchHandler)
+        .handler(contentHeadersHandler)
+        .handler(unitOfWorkHandler)
+        .handler(lastDownloadedHandler)
         .handler(proxyHandler)
         .create())
 
@@ -108,6 +129,7 @@ class PyPiProxyRecipe
         .handler(timingHandler)
         .handler(assetKindHandler.rcurry(AssetKind.PACKAGE))
         .handler(securityHandler)
+        .handler(routingHandler)
         .handler(exceptionHandler)
         .handler(handlerContributor)
         .handler(negativeCacheHandler)
@@ -115,6 +137,7 @@ class PyPiProxyRecipe
         .handler(partialFetchHandler)
         .handler(contentHeadersHandler)
         .handler(unitOfWorkHandler)
+        .handler(lastDownloadedHandler)
         .handler(proxyHandler)
         .create())
 

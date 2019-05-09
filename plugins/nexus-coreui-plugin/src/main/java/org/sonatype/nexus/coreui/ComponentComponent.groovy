@@ -20,7 +20,6 @@ import javax.ws.rs.WebApplicationException
 
 import org.sonatype.nexus.common.entity.DetachedEntityId
 import org.sonatype.nexus.common.entity.EntityHelper
-import org.sonatype.nexus.common.entity.EntityId
 import org.sonatype.nexus.extdirect.DirectComponentSupport
 import org.sonatype.nexus.extdirect.model.PagedResponse
 import org.sonatype.nexus.extdirect.model.StoreLoadParameters
@@ -34,6 +33,7 @@ import org.sonatype.nexus.repository.security.RepositorySelector
 import org.sonatype.nexus.repository.security.VariableResolverAdapter
 import org.sonatype.nexus.repository.security.VariableResolverAdapterManager
 import org.sonatype.nexus.repository.storage.Asset
+import org.sonatype.nexus.repository.storage.BucketStore
 import org.sonatype.nexus.repository.storage.Component
 import org.sonatype.nexus.repository.storage.ComponentFinder
 import org.sonatype.nexus.repository.storage.ComponentStore
@@ -41,10 +41,7 @@ import org.sonatype.nexus.repository.storage.StorageFacet
 import org.sonatype.nexus.repository.storage.StorageTx
 import org.sonatype.nexus.security.BreadActions
 import org.sonatype.nexus.security.SecurityHelper
-import org.sonatype.nexus.selector.CselExpressionValidator
-import org.sonatype.nexus.selector.CselSelector
-import org.sonatype.nexus.selector.JexlExpressionValidator
-import org.sonatype.nexus.selector.JexlSelector
+import org.sonatype.nexus.selector.SelectorFactory
 import org.sonatype.nexus.selector.VariableSource
 import org.sonatype.nexus.validation.Validate
 
@@ -58,6 +55,7 @@ import com.softwarementors.extjs.djn.config.annotations.DirectAction
 import com.softwarementors.extjs.djn.config.annotations.DirectMethod
 import org.apache.shiro.authz.AuthorizationException
 import org.apache.shiro.authz.annotation.RequiresAuthentication
+import org.apache.shiro.authz.annotation.RequiresPermissions
 import org.hibernate.validator.constraints.NotEmpty
 
 import static com.google.common.base.Preconditions.checkNotNull
@@ -87,26 +85,28 @@ class ComponentComponent
     )
   }
 
-  private static final Closure ASSET_CONVERTER = { Asset asset, String componentName, String repositoryName,
-                                                   Map<String, String> repoNamesForBuckets, long lastThirty ->
-    new AssetXO(
-        id: EntityHelper.id(asset).value,
-        name: asset.name() ?: componentName,
-        format: asset.format(),
-        contentType: asset.contentType() ?: 'unknown',
-        size: asset.size() ?: 0,
-        repositoryName: repositoryName,
-        containingRepositoryName: repoNamesForBuckets[asset.bucketId()],
-        blobCreated: asset.blobCreated()?.toDate(),
-        blobUpdated: asset.blobUpdated()?.toDate(),
-        lastDownloaded: asset.lastDownloaded()?.toDate(),
-        blobRef: asset.blobRef() ? asset.blobRef().toString() : '',
-        componentId: asset.componentId() ? asset.componentId().value : '',
-        attributes: asset.attributes().backing(),
-        downloadCount: lastThirty,
-        createdBy: asset.createdBy(),
-        createdByIp: asset.createdByIp()
-    )
+  private static final Closure ASSET_CONVERTER = {
+    Asset asset,
+    String componentName,
+    String repositoryName,
+    String privilegedRepositoryName ->
+      new AssetXO(
+          id: EntityHelper.id(asset).value,
+          name: asset.name() ?: componentName,
+          format: asset.format(),
+          contentType: asset.contentType() ?: 'unknown',
+          size: asset.size() ?: 0,
+          repositoryName: repositoryName,
+          containingRepositoryName: privilegedRepositoryName,
+          blobCreated: asset.blobCreated()?.toDate(),
+          blobUpdated: asset.blobUpdated()?.toDate(),
+          lastDownloaded: asset.lastDownloaded()?.toDate(),
+          blobRef: asset.blobRef() ? asset.blobRef().toString() : '',
+          componentId: asset.componentId() ? asset.componentId().value : '',
+          attributes: asset.attributes().backing(),
+          createdBy: asset.createdBy(),
+          createdByIp: asset.createdByIp()
+      )
   }
 
   @Inject
@@ -122,10 +122,7 @@ class ComponentComponent
   VariableResolverAdapterManager variableResolverAdapterManager
 
   @Inject
-  JexlExpressionValidator jexlExpressionValidator
-
-  @Inject
-  CselExpressionValidator cselExpressionValidator
+  SelectorFactory selectorFactory
 
   @Inject
   BrowseService browseService
@@ -141,6 +138,9 @@ class ComponentComponent
 
   @Inject
   Map<String, ComponentFinder> componentFinders
+
+  @Inject
+  BucketStore bucketStore
 
   @DirectMethod
   @Timed
@@ -163,9 +163,8 @@ class ComponentComponent
         componentXO.group, componentXO.name, componentXO.version)
 
     def browseResult = browseService.browseComponentAssets(repository, components.get(0))
-    def repoNamesForBuckets = browseService.getRepositoryBucketNames(repository)
 
-    return createAssetXOs(browseResult.results, componentXO.name, repositoryName, repoNamesForBuckets)
+    return createAssetXOs(browseResult.results, componentXO.name, repository)
   }
 
   private List<Repository> getPreviewRepositories(final RepositorySelector repositorySelector) {
@@ -185,6 +184,7 @@ class ComponentComponent
   @DirectMethod
   @Timed
   @ExceptionMetered
+  @RequiresPermissions('nexus:selectors:*')
   PagedResponse<AssetXO> previewAssets(final StoreLoadParameters parameters) {
     String repositoryName = parameters.getFilter('repositoryName')
     String expression = parameters.getFilter('expression')
@@ -193,13 +193,9 @@ class ComponentComponent
       return null
     }
 
+    selectorFactory.validateSelector(type, expression)
+
     RepositorySelector repositorySelector = RepositorySelector.fromSelector(repositoryName)
-    if (type == JexlSelector.TYPE) {
-      jexlExpressionValidator.validate(expression)
-    }
-    else if (type == CselSelector.TYPE) {
-      cselExpressionValidator.validate(expression)
-    }
     List<Repository> selectedRepositories = getPreviewRepositories(repositorySelector)
     if (!selectedRepositories.size()) {
       return null
@@ -212,25 +208,8 @@ class ComponentComponent
         toQueryOptions(parameters))
     return new PagedResponse<AssetXO>(
         result.total,
-        result.results.collect(ASSET_CONVERTER.rcurry(null, null, [:], 0)) // buckets not needed for asset preview screen
+        result.results.collect(ASSET_CONVERTER.rcurry(null, null, null)) // buckets not needed for asset preview screen
     )
-  }
-
-  @DirectMethod
-  @Timed
-  @ExceptionMetered
-  PagedResponse<AssetXO> readAssets(final StoreLoadParameters parameters) {
-    String repositoryName = parameters.getFilter('repositoryName')
-    Repository repository = repositoryManager.get(repositoryName)
-    if (!repository.configuration.online) {
-      return null
-    }
-    def result = browseService.browseAssets(repository, toQueryOptions(parameters))
-    def repoNamesForBuckets = browseService.getRepositoryBucketNames(repository)
-
-    return new PagedResponse<AssetXO>(
-        result.total,
-        createAssetXOs(result.results, null, repositoryName, repoNamesForBuckets))
   }
 
   @DirectMethod
@@ -384,15 +363,37 @@ class ComponentComponent
       throw new WebApplicationException(Status.NOT_FOUND)
     }
 
-    ensurePermissions(repository, Collections.singletonList(asset), BreadActions.BROWSE)
+    String permittedRepositoryName = ensurePermissions(
+        repositoryManager.get(
+            bucketStore.getById(asset.bucketId()).repositoryName), Collections.singletonList(asset), BreadActions.BROWSE)
+
     if (asset) {
-      def repoNamesForBuckets = browseService.getRepositoryBucketNames(repository)
-      def lastThirty = browseService.getLastThirtyDays(asset)
-      return ASSET_CONVERTER.call(asset, null, repository.name, repoNamesForBuckets, lastThirty)
+      return ASSET_CONVERTER.call(asset, null, repositoryName, permittedRepositoryName)
     }
     else {
       return null
     }
+  }
+
+  @DirectMethod
+  @Timed
+  @ExceptionMetered
+  @RequiresAuthentication
+  @Validate
+  boolean canDeleteFolder(@NotEmpty final String path, @NotEmpty final String repositoryName)
+  {
+    Repository repository = repositoryManager.get(repositoryName)
+    return maintenanceService.canDeleteFolder(repository, path)
+  }
+
+  @DirectMethod
+  @Timed
+  @ExceptionMetered
+  @RequiresAuthentication
+  @Validate
+  void deleteFolder(@NotEmpty final String path, @NotEmpty final String repositoryName) {
+    Repository repository = repositoryManager.get(repositoryName)
+    maintenanceService.deleteFolder(repository, path)
   }
 
   private QueryOptions toQueryOptions(StoreLoadParameters storeLoadParameters) {
@@ -407,37 +408,66 @@ class ComponentComponent
   }
 
   /**
-   * Ensures that the action is permitted on at least one asset in the collection.
+   * Ensures that the action is permitted on at least one asset in the collection via any one
+   * of the passed in repositories
    *
+   * @param repository
+   * @param assets
+   * @param action
+   * @return the repository that the user has privilege to see the asset(s) through
    * @throws AuthorizationException
    */
-  private void ensurePermissions(final Repository repository,
-                                 final Iterable<Asset> assets,
-                                 final String action)
+  private String ensurePermissions(final Repository repository,
+                                   final Iterable<Asset> assets,
+                                   final String action)
   {
     checkNotNull(repository)
     checkNotNull(assets)
     checkNotNull(action)
-    String format = repository.getFormat().getValue()
-    VariableResolverAdapter variableResolverAdapter = variableResolverAdapterManager.get(format)
+
+    VariableResolverAdapter variableResolverAdapter = variableResolverAdapterManager.get(repository.format.value)
+
+    List<String> repositoryNames = repositoryManager.findContainingGroups(repository.name)
+    repositoryNames.add(0, repository.name)
+
     for (Asset asset : assets) {
       VariableSource variableSource = variableResolverAdapter.fromAsset(asset)
-      if (contentPermissionChecker.isPermitted(repository.getName(), format, action, variableSource)) {
-        return
+      String repositoryName = getPrivilegedRepositoryName(repositoryNames, repository.format.value, action, variableSource)
+      if (repositoryName) {
+        return repositoryName
       }
     }
+
     throw new AuthorizationException()
   }
 
   private List<AssetXO> createAssetXOs(List<Asset> assets,
                                        String componentName,
-                                       String repositoryName,
-                                       Map<EntityId, String> repoNamesForBuckets) {
+                                       Repository repository) {
     List<AssetXO> assetXOs = new ArrayList<>()
     for (Asset asset : assets) {
-      def lastThirty = browseService.getLastThirtyDays(asset)
-      assetXOs.add(ASSET_CONVERTER.call(asset, componentName, repositoryName, repoNamesForBuckets, lastThirty))
+      def privilegedRepositoryName = getPrivilegedRepositoryName(repository, asset)
+      assetXOs.add(ASSET_CONVERTER.call(asset, componentName, repository.name, privilegedRepositoryName))
     }
     return assetXOs
+  }
+
+  private String getPrivilegedRepositoryName(Repository repository, Asset asset) {
+    VariableResolverAdapter variableResolverAdapter = variableResolverAdapterManager.get(repository.format.value)
+    VariableSource variableSource = variableResolverAdapter.fromAsset(asset)
+    String assetRepositoryName = bucketStore.getById(asset.bucketId()).repositoryName
+    List<String> repositoryNames = repositoryManager.findContainingGroups(assetRepositoryName)
+    repositoryNames.add(0, assetRepositoryName)
+    return getPrivilegedRepositoryName(repositoryNames, repository.format.value, BreadActions.BROWSE, variableSource)
+  }
+
+  private String getPrivilegedRepositoryName(List<String> repositoryNames, String format, String action, VariableSource variableSource) {
+    for (String repositoryName : repositoryNames) {
+      if (contentPermissionChecker.isPermitted(repositoryName, format, action, variableSource)) {
+        return repositoryName
+      }
+    }
+
+    return null
   }
 }

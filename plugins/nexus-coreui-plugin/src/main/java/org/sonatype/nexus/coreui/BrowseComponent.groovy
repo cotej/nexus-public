@@ -12,16 +12,13 @@
  */
 package org.sonatype.nexus.coreui
 
-import javax.annotation.Nullable
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 
-import org.sonatype.nexus.common.app.VersionComparator
 import org.sonatype.nexus.common.encoding.EncodingUtil
 import org.sonatype.nexus.extdirect.DirectComponent
 import org.sonatype.nexus.extdirect.DirectComponentSupport
-import org.sonatype.nexus.rapture.StateContributor
 import org.sonatype.nexus.repository.Repository
 import org.sonatype.nexus.repository.browse.BrowseNodeConfiguration
 import org.sonatype.nexus.repository.manager.RepositoryManager
@@ -43,7 +40,6 @@ import groovy.transform.PackageScope
 @DirectAction(action = 'coreui_Browse')
 class BrowseComponent
     extends DirectComponentSupport
-    implements StateContributor
 {
   @PackageScope static final FOLDER = "folder"
   @PackageScope static final COMPONENT = "component"
@@ -57,8 +53,6 @@ class BrowseComponent
 
   @Inject
   RepositoryManager repositoryManager
-
-  final VersionComparator versionComparator = new VersionComparator()
 
   @DirectMethod
   @Timed
@@ -89,12 +83,6 @@ class BrowseComponent
           assetId: browseNode.assetId != null ? browseNode.assetId.value : null
       )
     }
-  }
-
-  @Override
-  @Nullable
-  Map<String, Object> getState() {
-    return ['browseTreeMaxNodes': configuration.maxNodes]
   }
 
   def isRoot(String path) {

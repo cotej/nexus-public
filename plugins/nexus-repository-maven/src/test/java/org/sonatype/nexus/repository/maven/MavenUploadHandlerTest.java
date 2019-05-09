@@ -66,6 +66,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -265,9 +266,9 @@ public class MavenUploadHandlerTest
 
     List<VariableSource> sources = captor.getAllValues();
 
-    assertVariableSource(sources.get(0), "/org/apache/maven/tomcat/5.0.28/tomcat-5.0.28.jar", "org.apache.maven",
+    assertVariableSource(sources.get(0), "org/apache/maven/tomcat/5.0.28/tomcat-5.0.28.jar", "org.apache.maven",
         "tomcat", "5.0.28", null, "jar");
-    assertVariableSource(sources.get(1), "/org/apache/maven/tomcat/5.0.28/tomcat-5.0.28-sources.jar",
+    assertVariableSource(sources.get(1), "org/apache/maven/tomcat/5.0.28/tomcat-5.0.28-sources.jar",
         "org.apache.maven", "tomcat", "5.0.28", "sources", "jar");
 
     verify(mavenHostedFacet).rebuildMetadata("org.apache.maven", "tomcat", "5.0.28", false);
@@ -420,6 +421,25 @@ public class MavenUploadHandlerTest
     assertCoordinates(path.getCoordinates(), "aParentGroupId", "anArtifactId", "2.0", null, "pom.sha1");
   }
 
+  /**
+   * Test added to address NEXUS-18196 which was fixed parsing large pom files
+   * see, https://github.com/codehaus-plexus/plexus-utils/commit/dd1c85f268f2e56cf0b8b4116119738431c98522
+   */
+  @Test
+  public void testAddingLargePom() throws Exception {
+    when(tempBlob.get()).thenReturn(getClass().getResourceAsStream("large_pom.xml"));
+    ComponentUpload componentUpload = new ComponentUpload();
+
+    AssetUpload assetUpload = new AssetUpload();
+    assetUpload.setPayload(jarPayload);
+    assetUpload.setFields(Collections.singletonMap("extension", "pom"));
+    componentUpload.getAssetUploads().add(assetUpload);
+
+    UploadResponse uploadResponse = underTest.handle(repository, componentUpload);
+
+    assertThat(uploadResponse.getAssetPaths(), is(notNullValue()));
+  }
+
   @Test
   public void testHandle_nullCoordinates() throws Exception {
     ComponentUpload componentUpload = new ComponentUpload();
@@ -533,6 +553,107 @@ public class MavenUploadHandlerTest
     model.setGroupId("testGroup");
     model.setVersion("${aProperty}");
     underTest.validatePom(model);
+  }
+
+  @Test
+  public void testHandle_doubleDotInGroupId() throws IOException {
+    ComponentUpload componentUpload = new ComponentUpload();
+
+    componentUpload.getFields().put("groupId", "foo/../g/a/v/a-v.jar");
+    componentUpload.getFields().put("artifactId", "artifactId");
+    componentUpload.getFields().put("version", "version");
+
+    AssetUpload assetUpload = new AssetUpload();
+    assetUpload.getFields().put("extension", "jar");
+    assetUpload.setPayload(jarPayload);
+    componentUpload.getAssetUploads().add(assetUpload);
+
+    underTest.handle(repository, componentUpload);
+
+    ArgumentCaptor<MavenPath> pathCapture = ArgumentCaptor.forClass(MavenPath.class);
+    verify(mavenFacet, times(2)).put(pathCapture.capture(), any(Payload.class));
+
+    List<MavenPath> paths = pathCapture.getAllValues();
+
+    assertThat(paths, hasSize(2));
+
+    MavenPath path = paths.get(0);
+    assertNotNull(path);
+    assertThat(path.getPath(), is("foo////g/a/v/a-v/jar/artifactId/version/artifactId-version.jar"));
+    assertCoordinates(path.getCoordinates(), "foo....g.a.v.a-v.jar", "artifactId", "version", null, "jar");
+
+  }
+
+  @Test
+  public void testHandle_doubleDotInArtifactId() throws IOException {
+    ComponentUpload componentUpload = new ComponentUpload();
+
+    componentUpload.getFields().put("groupId", "groupId");
+    componentUpload.getFields().put("artifactId", "/../g/a/v/a-v.jar");
+    componentUpload.getFields().put("version", "version");
+
+    AssetUpload assetUpload = new AssetUpload();
+    assetUpload.getFields().put("extension", "jar");
+    assetUpload.setPayload(jarPayload);
+    componentUpload.getAssetUploads().add(assetUpload);
+
+    try {
+      underTest.handle(repository, componentUpload);
+      fail("Expected ValidationErrorsException");
+    }
+    catch (ValidationErrorsException e) {
+      assertThat(e.getValidationErrors().size(), is(1));
+      assertThat(e.getValidationErrors().get(0).getMessage(),
+          is("Path is not allowed to have '.' or '..' segments: 'groupId//../g/a/v/a-v.jar/version//../g/a/v/a-v.jar-version.jar'"));
+    }
+  }
+
+  @Test
+  public void testHandle_doubleDotInVersion() throws IOException {
+    ComponentUpload componentUpload = new ComponentUpload();
+
+    componentUpload.getFields().put("groupId", "groupId");
+    componentUpload.getFields().put("artifactId", "artifactId");
+    componentUpload.getFields().put("version", "/../g/a/v/a-v.jar");
+
+    AssetUpload assetUpload = new AssetUpload();
+    assetUpload.getFields().put("extension", "jar");
+    assetUpload.setPayload(jarPayload);
+    componentUpload.getAssetUploads().add(assetUpload);
+
+    try {
+      underTest.handle(repository, componentUpload);
+      fail("Expected ValidationErrorsException");
+    }
+    catch (ValidationErrorsException e) {
+      assertThat(e.getValidationErrors().size(), is(1));
+      assertThat(e.getValidationErrors().get(0).getMessage(),
+          is("Path is not allowed to have '.' or '..' segments: 'groupId/artifactId//../g/a/v/a-v.jar/artifactId-/../g/a/v/a-v.jar.jar'"));
+    }
+  }
+
+  @Test
+  public void testHandle_doubleDotInExtension() throws IOException {
+    ComponentUpload componentUpload = new ComponentUpload();
+
+    componentUpload.getFields().put("groupId", "groupId");
+    componentUpload.getFields().put("artifactId", "artifactId");
+    componentUpload.getFields().put("version", "version");
+
+    AssetUpload assetUpload = new AssetUpload();
+    assetUpload.getFields().put("extension", "/../g/a/v/a-v.jar");
+    assetUpload.setPayload(jarPayload);
+    componentUpload.getAssetUploads().add(assetUpload);
+
+    try {
+      underTest.handle(repository, componentUpload);
+      fail("Expected ValidationErrorsException");
+    }
+    catch (ValidationErrorsException e) {
+      assertThat(e.getValidationErrors().size(), is(1));
+      assertThat(e.getValidationErrors().get(0).getMessage(),
+          is("Path is not allowed to have '.' or '..' segments: 'groupId/artifactId/version/artifactId-version./../g/a/v/a-v.jar'"));
+    }
   }
 
   private static void assertVariableSource(final VariableSource source,

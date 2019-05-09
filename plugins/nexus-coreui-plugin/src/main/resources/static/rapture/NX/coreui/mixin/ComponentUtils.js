@@ -131,9 +131,10 @@ Ext.define('NX.coreui.mixin.ComponentUtils', {
     }
   },
 
-  updateDeleteAssetButton: function(currentRepository, assetModel) {
+  updateDeleteAssetButton: function(currentRepository, assetModel, isFolder) {
     var me = this,
-        deleteAssetButton = me.getDeleteAssetButton();
+        deleteAssetButton = me.getDeleteAssetButton(),
+        deleteAssetFolderButton = me.getDeleteAssetFolderButton && me.getDeleteAssetFolderButton();
 
     if (assetModel) {
       me.updateDeleteButton(deleteAssetButton, currentRepository, function() {
@@ -153,6 +154,17 @@ Ext.define('NX.coreui.mixin.ComponentUtils', {
     else {
       deleteAssetButton.disable();
     }
+
+    if (deleteAssetFolderButton) {
+      if (isFolder) {
+        deleteAssetFolderButton.show();
+        me.updateDeleteFolderButton(deleteAssetFolderButton, currentRepository, assetModel.get('name'));
+      }
+      else {
+        deleteAssetFolderButton.disable();
+        deleteAssetFolderButton.hide();
+      }
+    }
   },
 
   updateDeleteButton: function(deleteButton, currentRepository, isAuthenticatedCallback) {
@@ -167,6 +179,127 @@ Ext.define('NX.coreui.mixin.ComponentUtils', {
       else {
         deleteButton.disableWithTooltip(NX.I18n.get('ComponentUtils_Delete_Button_Unauthenticated'));
       }
+    }
+    else {
+      deleteButton.hide();
+    }
+  },
+
+  updateDeleteFolderButton: function (deleteButton, currentRepository, path) {
+    var me = this;
+
+    if (path) {
+      me.updateDeleteButton(deleteButton, currentRepository, function() {
+        NX.direct.coreui_Component.canDeleteFolder(path, currentRepository.get('name'),
+            function(response) {
+              if (Ext.isObject(response) && response.success) {
+                if (response.data) {
+                  deleteButton.enable();
+                }
+                else {
+                  deleteButton.disableWithTooltip(NX.I18n.get('ComponentUtils_Delete_Asset_No_Permissions'));
+                }
+              }
+            });
+      });
+    }
+  },
+
+  /**
+   * @private
+   * @param assetModel
+   * @returns string showing either last download date or that no downloads have happened
+   */
+  getLastDownloadDateForDisplay: function(assetModel) {
+    var out, lastDownload = assetModel.get('lastDownloaded');
+    if (lastDownload != null) {
+      out = Ext.Date.format(lastDownload, 'D M d Y');
+    }
+    else {
+      out = NX.I18n.get('Assets_Info_No_Downloads');
+    }
+    return out;
+  },
+
+  /**
+   * @param asset
+   * @returns {NX.model.Icon} an icon for a given asset
+   */
+  getIconForAsset: function (asset) {
+    var me = this,
+        iconController = NX.getApplication().getIconController();
+
+    switch (asset.get('type')) {
+      case 'folder':
+        return iconController.findIcon('tree-folder', 'x16');
+      case 'component':
+        return iconController.findIcon('tree-component', 'x16');
+      case 'asset':
+        var assetName = asset.get('text');
+        var icon = me.getIconForAssetName(assetName);
+        if (icon) {
+          return icon;
+        }
+        return iconController.findIcon((asset.get('leaf') ? 'tree-asset' : 'tree-asset-folder'), 'x16')
+    }
+  },
+
+  /**
+   * @param assetName
+   * @returns {NX.model.Icon} an icon for a given asset name
+   */
+  getIconForAssetName: function (assetName) {
+    var extension = assetName.substr(assetName.lastIndexOf('.') + 1);
+    extension = this.getExtensionOverrideMaybe(extension);
+
+    return NX.getApplication().getIconController().findIcon('asset-type-' + extension, 'x16');
+  },
+
+  /**
+   * @private
+   * @param extension
+   * @returns {string} extension or an extension override
+   */
+  getExtensionOverrideMaybe: function (extension) {
+    switch (extension) {
+      case 'gem':
+      case 'rb':
+        return 'ruby';
+
+      case 'egg':
+      case 'nupkg':
+      case 'rpm':
+      case 'whl':
+        return 'zip';
+
+      case 'bz2':
+      case 'lzma':
+      case 'rz':
+      case 'xz':
+      case 'Z':
+        return 'gz';
+
+      case 'tbz2':
+      case 'tlz':
+      case 'txz':
+        return 'tgz';
+
+      case 'ear':
+      case 'war':
+        return 'jar';
+
+      case 'sh':
+        return 'bat';
+
+      case 'pom':
+      case 'xml':
+        return 'code';
+
+      case 'deb':
+        return 'debian';
+
+      default:
+        return extension;
     }
   }
 

@@ -97,7 +97,10 @@ Ext.define('NX.app.Application', {
     'NX.ext.view.BoundList',
 
     // animated card layout
-    'NX.ext.layout.container.Card'
+    'NX.ext.layout.container.Card',
+
+    // Override for ExtJS 6.6
+    'NX.ext.chart.legend.SpriteLegend'
   ],
 
   name: 'NX',
@@ -122,6 +125,7 @@ Ext.define('NX.app.Application', {
    */
   controllers: [
     'Copy',
+    'DependencySnippet',
     'Logging',
     'State',
     'Bookmarking',
@@ -192,7 +196,9 @@ Ext.define('NX.app.Application', {
    * @param {NX.app.Application} app this class
    */
   init: function (app) {
-    var me = this;
+    var me = this,
+        csrfToken = Ext.util.Cookies.get('NX-ANTI-CSRF-TOKEN'),
+        basePath, hostname;
 
     //<if debug>
     me.logInfo('Initializing');
@@ -202,13 +208,22 @@ Ext.define('NX.app.Application', {
     // Configure blank image URL
     Ext.BLANK_IMAGE_URL = NX.util.Url.baseUrl + '/static/rapture/resources/images/s.gif';
 
+    if (!csrfToken) {
+      basePath = NX.util.Url.baseUrl.substring(window.location.origin.length) || null;
+      hostname = window.location.hostname;
+      if ((Ext.isEdge || Ext.isIE) && hostname && hostname.indexOf('.') === -1) {
+        // IE & Edge won't set a cookie for domains without a TLD
+        hostname = null;
+      }
+      csrfToken = Math.random().toString();
+      Ext.util.Cookies.set('NX-ANTI-CSRF-TOKEN', csrfToken, null, basePath, hostname);
+    }
+
     Ext.Ajax.setDefaultHeaders({
-      // HACK: Setting request header to allow analytics to tell if the request came from the UI or not
-      // HACK: This has some issues, will only catch ajax requests, etc... but may be fine for now
       'X-Nexus-UI': 'true',
-      'NX-ANTI-CSRF-TOKEN': Ext.util.Cookies.get('NX-ANTI-CSRF-TOKEN')
+      'NX-ANTI-CSRF-TOKEN': csrfToken
     });
-    
+
     app.initErrorHandler();
     app.initDirect();
     app.initState();

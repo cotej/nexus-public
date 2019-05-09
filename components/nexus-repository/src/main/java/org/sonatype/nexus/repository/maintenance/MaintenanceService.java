@@ -38,10 +38,17 @@ public interface MaintenanceService
   Set<String> deleteComponent(Repository repository, Component component);
 
   /**
+   * Delete a path in the specified repository.
+   *
+   * @since 3.15
+   */
+  void deleteFolder(Repository repository, String path);
+
+  /**
    * Check if a component can be deleted.
    * @return true if the component can be deleted, false otherwise
    *
-   * @since 3.next
+   * @since 3.15
    */
   boolean canDeleteComponent(Repository repository, Component component);
 
@@ -49,7 +56,15 @@ public interface MaintenanceService
    * Check if an asset can be deleted.
    * @return true if the asset can be deleted, false otherwise
    *
-   * @since 3.next
+   * @since 3.15
    */
   boolean canDeleteAsset(Repository repository, Asset asset);
+
+  /**
+   * Check if user can potentially delete any asset in a given path.
+   * @return true if the path can be deleted, false otherwise
+   *
+   * @since 3.15
+   */
+  boolean canDeleteFolder(Repository repository, String path);
 }

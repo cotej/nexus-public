@@ -19,9 +19,11 @@ import javax.inject.Singleton
 
 import org.sonatype.goodies.common.ComponentSupport
 import org.sonatype.nexus.common.app.ApplicationLicense
+import org.sonatype.nexus.common.app.ApplicationLicense.Attributes
 import org.sonatype.nexus.rapture.StateContributor
 
 import com.google.common.collect.ImmutableMap
+import groovy.time.TimeCategory
 
 import static com.google.common.base.Preconditions.checkNotNull
 
@@ -32,7 +34,7 @@ import static com.google.common.base.Preconditions.checkNotNull
  */
 @Named
 @Singleton
-public class LicenseStateContributor
+class LicenseStateContributor
     extends ComponentSupport
     implements StateContributor
 {
@@ -41,13 +43,13 @@ public class LicenseStateContributor
   private final ApplicationLicense applicationLicense
 
   @Inject
-  public LicenseStateContributor(final ApplicationLicense applicationLicense) {
+  LicenseStateContributor(final ApplicationLicense applicationLicense) {
     this.applicationLicense = checkNotNull(applicationLicense)
   }
 
   @Nullable
   @Override
-  public Map<String, Object> getState() {
+  Map<String, Object> getState() {
     return ImmutableMap.of(STATE_ID, calculateLicense())
   }
 
@@ -57,14 +59,14 @@ public class LicenseStateContributor
     result.setInstalled(applicationLicense.isInstalled())
     result.setValid(applicationLicense.isValid())
     Map<String, Object> attributes = applicationLicense.getAttributes()
-    if (attributes && attributes.get(ApplicationLicense.Attributes.EXPIRATION_DATE.getKey())) {
-      use(groovy.time.TimeCategory) {
-        def duration = attributes.get(ApplicationLicense.Attributes.EXPIRATION_DATE.getKey()) - new Date()
+    if (attributes && attributes.get(Attributes.EXPIRATION_DATE.getKey())) {
+      use(TimeCategory) {
+        def duration = attributes.get(Attributes.EXPIRATION_DATE.getKey()) - new Date()
         result.setDaysToExpiry(duration.days)
       }
     }
-    if (attributes && attributes.get(ApplicationLicense.Attributes.FEATURES.getKey())) {
-      result.setFeatures(attributes.get(ApplicationLicense.Attributes.FEATURES.getKey()))
+    if (attributes && attributes.get(Attributes.FEATURES.getKey())) {
+      result.setFeatures(attributes.get(Attributes.FEATURES.getKey()) as List<String>)
     }
     else {
       result.setFeatures(Collections.emptyList())

@@ -15,15 +15,19 @@ package org.sonatype.nexus.repository.search;
 import java.util.Map;
 import java.util.Set;
 
+import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+
+import org.sonatype.nexus.repository.manager.RepositoryManager;
+import org.sonatype.nexus.repository.security.ContentPermissionChecker;
+import org.sonatype.nexus.repository.security.VariableResolverAdapterManager;
 
 import org.elasticsearch.search.SearchHit;
 
 import static org.sonatype.nexus.repository.search.DefaultComponentMetadataProducer.FORMAT;
 import static org.sonatype.nexus.repository.search.DefaultComponentMetadataProducer.GROUP;
 import static org.sonatype.nexus.repository.search.DefaultComponentMetadataProducer.NAME;
-import static org.sonatype.nexus.repository.search.DefaultComponentMetadataProducer.REPOSITORY_NAME;
 import static org.sonatype.nexus.repository.search.DefaultComponentMetadataProducer.VERSION;
 
 /**
@@ -32,10 +36,17 @@ import static org.sonatype.nexus.repository.search.DefaultComponentMetadataProdu
 @Singleton
 @Named
 public class DefaultSearchResultComponentGenerator
-    implements SearchResultComponentGenerator
+  extends SearchResultComponentGeneratorSupport
 {
-
   public static final String DEFAULT_SEARCH_RESULT_COMPONENT_GENERATOR_KEY = "default";
+
+  @Inject
+  public DefaultSearchResultComponentGenerator(final VariableResolverAdapterManager variableResolverAdapterManager,
+                                               final RepositoryManager repositoryManager,
+                                               final ContentPermissionChecker contentPermissionChecker)
+  {
+    super(variableResolverAdapterManager, repositoryManager, contentPermissionChecker);
+  }
 
   @Override
   public SearchResultComponent from(final SearchHit hit, final Set<String> componentIdSet) {
@@ -43,7 +54,7 @@ public class DefaultSearchResultComponentGenerator
     final Map<String, Object> source = hit.getSource();
 
     component.setId(hit.getId());
-    component.setRepositoryName((String) source.get(REPOSITORY_NAME));
+    component.setRepositoryName(getPrivilegedRepositoryName(source));
     component.setGroup((String) source.get(GROUP));
     component.setName((String) source.get(NAME));
     component.setVersion((String) source.get(VERSION));

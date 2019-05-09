@@ -33,6 +33,7 @@ import org.mockito.ArgumentCaptor
 import org.mockito.Mock
 
 import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.notNullValue
 import static org.junit.Assert.fail
 import static org.mockito.ArgumentCaptor.forClass
 import static org.mockito.Matchers.any
@@ -260,10 +261,12 @@ class BlobStoreManagerImplTest
   void 'It is promotable when the store finds no parents and the blob store is groupable'() {
     def blobStoreName = 'child'
     def blobStore = mock(BlobStore)
+    underTest.track(blobStoreName, blobStore)
     when(blobStore.isGroupable()).thenReturn(true)
+    when(blobStore.isWritable()).thenReturn(true)
     when(blobStore.getBlobStoreConfiguration()).thenReturn(new BlobStoreConfiguration(name: blobStoreName))
-    when(store.findParents(blobStoreName)).thenReturn([])
-    assert underTest.isPromotable(blobStore)
+    when(store.findParent(blobStoreName)).thenReturn(Optional.empty())
+    assert underTest.isPromotable(blobStoreName)
   }
 
   @Test
@@ -272,8 +275,8 @@ class BlobStoreManagerImplTest
     def blobStore = mock(BlobStore)
     when(blobStore.isGroupable()).thenReturn(true)
     when(blobStore.getBlobStoreConfiguration()).thenReturn(new BlobStoreConfiguration(name: blobStoreName))
-    when(store.findParents(blobStoreName)).thenReturn([new BlobStoreConfiguration()])
-    assert !underTest.isPromotable(blobStore)
+    when(store.findParent(blobStoreName)).thenReturn(Optional.of(new BlobStoreConfiguration()))
+    assert !underTest.isPromotable(blobStoreName)
   }
 
   @Test
@@ -282,8 +285,30 @@ class BlobStoreManagerImplTest
     def blobStore = mock(BlobStore)
     when(blobStore.isGroupable()).thenReturn(false)
     when(blobStore.getBlobStoreConfiguration()).thenReturn(new BlobStoreConfiguration(name: blobStoreName))
-    when(store.findParents(blobStoreName)).thenReturn([])
-    assert !underTest.isPromotable(blobStore)
+    when(store.findParent(blobStoreName)).thenReturn(Optional.empty())
+    assert !underTest.isPromotable(blobStoreName)
+  }
+
+  @Test
+  void 'Can start when a blob store fails to restore'() {
+    BlobStore blobStore = mock(BlobStore)
+    when(blobStore.init(any(BlobStoreConfiguration.class))).thenThrow(new IllegalStateException())
+    when(provider.get()).thenReturn(blobStore)
+    when(store.list()).thenReturn(Lists.newArrayList(createConfig('test')))
+
+    underTest.doStart()
+    assertThat('blob store manager should still track blob stores that failed on startup', underTest.get('test'),
+        notNullValue())
+  }
+
+  @Test
+  void 'Can start when a blob store fails to start'() {
+    BlobStore blobStore = mock(BlobStore)
+    when(blobStore.start()).thenThrow(new IllegalStateException())
+    when(provider.get()).thenReturn(blobStore)
+    when(store.list()).thenReturn(Lists.newArrayList(createConfig('test')))
+    underTest.doStart()
+    assert underTest.browse().toList() == [blobStore]
   }
 
   private BlobStoreConfiguration createConfig(name = 'foo', type = 'test', attributes = [file:[path:'baz']]) {

@@ -379,7 +379,7 @@ public class DefaultCapabilityRegistry
 
       if (descriptor == null) {
         log.warn(
-            "Capabilities persistent storage (capabilities.xml?) contains an capability of unknown type {} with"
+            "Capabilities persistent storage contains a capability of unknown type {} with"
                 + " id {}. This capability will not be loaded", item.getType(), id
         );
         continue;
@@ -417,7 +417,14 @@ public class DefaultCapabilityRegistry
         );
       }
 
-      final DefaultCapabilityReference reference = create(id, capabilityType(item.getType()), descriptor);
+      DefaultCapabilityReference reference = references.get(id);
+      if (reference != null) {
+        // already loaded, update instead...
+        doUpdate(reference, item, properties);
+        continue;
+      }
+
+      reference = create(id, capabilityType(item.getType()), descriptor);
 
       reference.setNotes(item.getNotes());
       reference.load(properties);

@@ -13,12 +13,10 @@
 package org.sonatype.nexus.repository.manager.internal;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -116,6 +114,8 @@ public class RepositoryManagerImpl
 
   private final BlobStoreManager blobStoreManager;
 
+  private final GroupMemberMappingCache groupMemberMappingCache;
+
   @Inject
   public RepositoryManagerImpl(final EventManager eventManager,
                                final ConfigurationStore store,
@@ -126,7 +126,8 @@ public class RepositoryManagerImpl
                                final List<DefaultRepositoriesContributor> defaultRepositoriesContributors,
                                final DatabaseFreezeService databaseFreezeService,
                                @Named("${nexus.skipDefaultRepositories:-false}") final boolean skipDefaultRepositories,
-                               final BlobStoreManager blobStoreManager)
+                               final BlobStoreManager blobStoreManager,
+                               final GroupMemberMappingCache groupMemberMappingCache)
   {
     this.eventManager = checkNotNull(eventManager);
     this.store = checkNotNull(store);
@@ -138,6 +139,7 @@ public class RepositoryManagerImpl
     this.databaseFreezeService = checkNotNull(databaseFreezeService);
     this.skipDefaultRepositories = skipDefaultRepositories;
     this.blobStoreManager = checkNotNull(blobStoreManager);
+    this.groupMemberMappingCache = checkNotNull(groupMemberMappingCache);
   }
 
   /**
@@ -213,6 +215,8 @@ public class RepositoryManagerImpl
   @Override
   protected void doStart() throws Exception {
     blobStoreManager.start();
+
+    groupMemberMappingCache.init(this);
 
     List<Configuration> configurations = store.list();
 
@@ -398,24 +402,15 @@ public class RepositoryManagerImpl
    * another group.
    *
    * @since 3.14
+   *
+   * @param repositoryName
+   * @return List of group(s) that contain the supplied repository.  Ordered from closest to the repo to farthest away
+   * i.e. if group A contains group B which contains repo C the returned list would be ordered B,A
    */
   @Override
   @Guarded(by = STARTED)
-  public Set<String> findContainingGroups(final String name) {
-    return findContainingGroups(name, new HashSet<>());
-  }
-
-  private Set<String> findContainingGroups(final String name, final Set<String> containingGroups) {
-    for (Repository group : repositories.values()) {
-      boolean containsRepository = group.optionalFacet(GroupFacet.class).filter(groupFacet -> groupFacet.member(name))
-          .isPresent();
-      if (containsRepository && !containingGroups.contains(group.getName())) {
-        containingGroups.add(group.getName());
-        containingGroups.addAll(findContainingGroups(group.getName(), containingGroups));
-      }
-    }
-
-    return containingGroups;
+  public List<String> findContainingGroups(final String repositoryName) {
+    return groupMemberMappingCache.getGroups(repositoryName);
   }
 
   private void removeRepositoryFromAllGroups(final Repository repositoryToRemove) throws Exception {
@@ -457,6 +452,11 @@ public class RepositoryManagerImpl
   public Stream<Repository> browseForCleanupPolicy(final String cleanupPolicyName) {
     return stream(browse().spliterator(), false)
         .filter(repository -> repositoryHasCleanupPolicy(repository, cleanupPolicyName));
+  }
+
+  @Override
+  public Collection<Recipe> getAllSupportedRecipes() {
+    return recipes.values();
   }
 
   @Subscribe

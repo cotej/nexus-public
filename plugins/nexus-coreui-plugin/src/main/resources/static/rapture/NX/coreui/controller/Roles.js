@@ -111,7 +111,8 @@ Ext.define('NX.coreui.controller.Roles', {
           click: me.showAddWindowMapping
         },
         'nx-coreui-role-settings-form': {
-          submitted: me.onSettingsSubmitted
+          submitted: me.onSettingsSubmitted,
+          beforerecordloaded: me.onBeforeRecordLoaded
         }
       }
     });
@@ -256,6 +257,15 @@ Ext.define('NX.coreui.controller.Roles', {
           text: NX.I18n.format('Roles_Delete_Message', description), type: 'success'
         });
       }
+    });
+  },
+
+  onBeforeRecordLoaded: function(roleSettingsForm, editingRole) {
+    var roleStore = roleSettingsForm.down('#roles').getStore();
+    roleStore.load();
+    roleStore.clearFilter(true);
+    roleStore.filterBy(function(role) {
+      return role.get('id') !== editingRole.get('id');
     });
   }
 

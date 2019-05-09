@@ -31,12 +31,19 @@ public interface PyPiHostedFacet
     extends Facet
 {
   /**
+   * Retrieve root index.
+   *
+   * @return simple root HTML
+   */
+  Content getRootIndex();
+
+  /**
    * Retrieve index.
    *
    * @param name package name
    * @return simple package HTML
    */
-  Content getIndex(String name);
+  Content getIndex(String name) throws IOException;
 
   /**
    * Retrieve package.

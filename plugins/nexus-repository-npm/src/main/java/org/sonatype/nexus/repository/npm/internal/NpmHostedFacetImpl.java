@@ -23,6 +23,7 @@ import javax.inject.Named;
 
 import org.sonatype.nexus.common.collect.AttributesMap;
 import org.sonatype.nexus.common.collect.NestedAttributesMap;
+import org.sonatype.nexus.common.entity.EntityHelper;
 import org.sonatype.nexus.common.hash.HashAlgorithm;
 import org.sonatype.nexus.common.text.Strings2;
 import org.sonatype.nexus.repository.FacetSupport;
@@ -42,9 +43,19 @@ import org.sonatype.nexus.repository.view.Content;
 import org.sonatype.nexus.repository.view.Payload;
 import org.sonatype.nexus.transaction.UnitOfWork;
 
+import com.google.common.eventbus.Subscribe;
+
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static java.util.Arrays.asList;
+import static org.sonatype.nexus.repository.npm.internal.NpmFacetUtils.findPackageRootAsset;
+import static org.sonatype.nexus.repository.npm.internal.NpmFacetUtils.savePackageRoot;
+import static org.sonatype.nexus.repository.npm.internal.NpmFacetUtils.toContent;
+import static org.sonatype.nexus.repository.npm.internal.NpmFieldFactory.missingRevFieldMatcher;
+import static org.sonatype.nexus.repository.npm.internal.NpmFieldFactory.rewriteTarballUrlMatcher;
+import static org.sonatype.nexus.repository.npm.internal.NpmMetadataUtils.META_ID;
+import static org.sonatype.nexus.repository.npm.internal.NpmMetadataUtils.META_REV;
 import static org.sonatype.nexus.repository.npm.internal.NpmMetadataUtils.selectVersionByTarballName;
 import static org.sonatype.nexus.repository.npm.internal.NpmPackageRootMetadataUtils.createFullPackageMetadata;
 import static org.sonatype.nexus.repository.npm.internal.NpmVersionComparator.extractAlwaysPackageVersion;
@@ -75,20 +86,71 @@ public class NpmHostedFacetImpl
   @Nullable
   @Override
   @TransactionalTouchBlob
-  public Content getPackage(final NpmPackageId packageId, final boolean edit) throws IOException {
+  public Content getPackage(final NpmPackageId packageId) throws IOException {
     checkNotNull(packageId);
-    log.debug("Getting package: {} (edit={})", packageId, edit);
+    log.debug("Getting package: {}", packageId);
     StorageTx tx = UnitOfWork.currentTx();
-    Asset packageRootAsset = NpmFacetUtils.findPackageRootAsset(tx, tx.findBucket(getRepository()), packageId);
+    Asset packageRootAsset = findPackageRootAsset(tx, tx.findBucket(getRepository()), packageId);
     if (packageRootAsset == null) {
       return null;
     }
-    if (!edit && packageRootAsset.markAsDownloaded()) {
-      tx.saveAsset(packageRootAsset);
+
+    return toContent(getRepository(), packageRootAsset)
+        .fieldMatchers(asList(
+            missingRevFieldMatcher(() -> generateNewRevId(packageRootAsset)),
+            rewriteTarballUrlMatcher(getRepository().getName(), packageId.id())))
+        .packageId(packageRootAsset.name());
+  }
+
+  protected String generateNewRevId(final Asset packageRootAsset) {
+    String newRevision = EntityHelper.version(packageRootAsset).getValue();
+
+    // For NEXUS-18094 we gonna request to upgrade the actual asset
+    getEventManager().post(new NpmRevisionUpgradeRequestEvent(packageRootAsset, newRevision));
+
+    return newRevision;
+  }
+
+  /**
+   * For NEXUS-18094 we moved the revision number to live in the package root file so that the revision number doesn't
+   * change as the database record changes (previously it used the Orient Document Version number). This method allows
+   * us to avoid the need for an upgrade step by upgrading package roots without a rev as they are fetched.
+   */
+  @Subscribe
+  public void on(final NpmRevisionUpgradeRequestEvent event) {
+    UnitOfWork.begin(getRepository().facet(StorageFacet.class).txSupplier());
+    try {
+      upgradeRevisionOnPackageRoot(event.getPackageRootAsset(), event.getRevision());
     }
-    NestedAttributesMap packageRoot = NpmFacetUtils.loadPackageRoot(tx, packageRootAsset);
-    NpmMetadataUtils.rewriteTarballUrl(getRepository().getName(), packageRoot);
-    return NpmFacetUtils.toContent(packageRootAsset, packageRoot);
+    finally {
+      UnitOfWork.end();
+    }
+  }
+
+  @TransactionalTouchBlob
+  protected void upgradeRevisionOnPackageRoot(final Asset packageRootAsset, final String revision) {
+    StorageTx tx = UnitOfWork.currentTx();
+
+    NpmPackageId packageId = NpmPackageId.parse(packageRootAsset.name());
+    Asset asset = findPackageRootAsset(tx, tx.findBucket(getRepository()), packageId);
+
+    if (asset == null) {
+      log.error("Failed to update revision on package root. Asset for id '{}' didn't exist", packageId.id());
+      return;
+    }
+
+    // if there is a transaction failure and we fail to upgrade the package root with _rev
+    // then the user who fetched the package root will not be able to run a delete command
+    try {
+      NestedAttributesMap packageRoot = NpmFacetUtils.loadPackageRoot(tx, asset);
+      packageRoot.set(META_REV, revision);
+      savePackageRoot(UnitOfWork.currentTx(), packageRootAsset, packageRoot);
+    }
+    catch (IOException e) {
+      log.warn("Failed to update revision in package root. Revision '{}' was not set" +
+              " and might cause delete for that revision to fail for Asset {}",
+          revision, packageRootAsset, e);
+    }
   }
 
   @Override
@@ -177,8 +239,8 @@ public class NpmHostedFacetImpl
    */
   @TransactionalStoreBlob
   public void putPackageRoot(final NpmPackageId packageId,
-                                @Nullable final String revision,
-                                final NestedAttributesMap newPackageRoot)
+                             @Nullable final String revision,
+                             final NestedAttributesMap newPackageRoot)
       throws IOException
   {
     log.debug("Storing package root: {}", packageId);
@@ -187,18 +249,18 @@ public class NpmHostedFacetImpl
     boolean update = false;
 
     NestedAttributesMap packageRoot = newPackageRoot;
-    Asset packageRootAsset = NpmFacetUtils.findPackageRootAsset(tx, bucket, packageId);
+    Asset packageRootAsset = findPackageRootAsset(tx, bucket, packageId);
     if (packageRootAsset != null) {
       NestedAttributesMap oldPackageRoot = NpmFacetUtils.loadPackageRoot(tx, packageRootAsset);
 
       String rev = revision;
       if (rev == null) {
-        rev = packageRoot.get(NpmMetadataUtils.META_REV, String.class);
+        rev = packageRoot.get(META_REV, String.class);
       }
       // ensure revision is expected, client updates package that is in expected state
       if (rev != null) {
         // if revision is present, full document is being sent, no overlay must occur
-        checkArgument(rev.equals(oldPackageRoot.get(NpmMetadataUtils.META_REV, String.class)));
+        checkArgument(rev.equals(oldPackageRoot.get(META_REV, String.class)));
         update = true;
       }
       else {
@@ -207,14 +269,46 @@ public class NpmHostedFacetImpl
       }
     }
 
+    boolean createdPackageRoot = false;
     if (packageRootAsset == null) {
       packageRootAsset = tx.createAsset(bucket, getRepository().getFormat()).name(packageId.id());
+      createdPackageRoot = true;
     }
 
-    NpmFacetUtils.savePackageRoot(tx, packageRootAsset, packageRoot);
+    updateRevision(packageRoot, packageRootAsset, createdPackageRoot);
+
+    savePackageRoot(tx, packageRootAsset, packageRoot);
     if (update) {
       updateDeprecationFlags(tx, packageId, packageRoot);
     }
+  }
+
+  private void updateRevision(final NestedAttributesMap packageRoot,
+                              final Asset packageRootAsset,
+                              final boolean createdPackageRoot)
+  {
+    String newRevision = "1";
+
+    if (!createdPackageRoot) {
+      if (packageRoot.contains(META_REV)) {
+        String rev = packageRoot.get(META_REV, String.class);
+        newRevision = Integer.toString(Integer.parseInt(rev) + 1);
+      }
+      else {
+        /*
+          This is covering the edge case when a new package is uploaded to a repository where the packageRoot already 
+          exists.
+          
+          If that packageRoot was created using an earlier version of NXRM where we didn't store the rev then we need
+          to add it in. We also add the rev in on download but it is possible that someone is uploading a package where
+          the packageRoot has never been downloaded before.
+         */
+        newRevision = EntityHelper.version(packageRootAsset).getValue();
+      }
+    }
+
+    packageRoot.set(META_ID, packageRootAsset.name());
+    packageRoot.set(META_REV, newRevision);
   }
 
   /**
@@ -281,10 +375,10 @@ public class NpmHostedFacetImpl
     checkNotNull(packageId);
     StorageTx tx = UnitOfWork.currentTx();
     if (revision != null) {
-      Asset packageRootAsset = NpmFacetUtils.findPackageRootAsset(tx, tx.findBucket(getRepository()), packageId);
+      Asset packageRootAsset = findPackageRootAsset(tx, tx.findBucket(getRepository()), packageId);
       if (packageRootAsset != null) {
         NestedAttributesMap oldPackageRoot = NpmFacetUtils.loadPackageRoot(tx, packageRootAsset);
-        checkArgument(revision.equals(oldPackageRoot.get(NpmMetadataUtils.META_REV, String.class)));
+        checkArgument(revision.equals(oldPackageRoot.get(META_REV, String.class)));
       }
     }
 

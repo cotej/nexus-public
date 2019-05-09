@@ -13,6 +13,7 @@
 package org.sonatype.nexus.security;
 
 import java.util.Arrays;
+import java.util.stream.StreamSupport;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -73,6 +74,25 @@ public class SecurityHelper
   }
 
   /**
+   * Ensure subject has any of the given permissions.
+   *
+   * @throws AuthorizationException
+   */
+  public void ensureAnyPermitted(final Subject subject, final Permission... permissions) {
+    checkNotNull(subject);
+    checkNotNull(permissions);
+    checkArgument(permissions.length != 0);
+
+    if (log.isTraceEnabled()) {
+      log.trace("Ensuring subject '{}' has any of the following permissions: {}", subject.getPrincipal(), Arrays.toString(permissions));
+    }
+
+    if (!anyPermitted(subject, permissions)) {
+      throw new AuthorizationException("User is not permitted.");
+    }
+  }
+
+  /**
    * Ensure current subject has given permissions.
    *
    * @throws AuthorizationException
@@ -107,6 +127,16 @@ public class SecurityHelper
           subject.getPrincipal(), Arrays.toString(permissions));
     }
     return false;
+  }
+
+  /**
+   * Check if subject has ANY of the given permissions.
+   */
+  public boolean anyPermitted(final Subject subject, final Iterable<Permission> permissions) {
+    return anyPermitted(
+        subject,
+        StreamSupport.stream(permissions.spliterator(), false).toArray(Permission[]::new)
+    );
   }
 
   /**

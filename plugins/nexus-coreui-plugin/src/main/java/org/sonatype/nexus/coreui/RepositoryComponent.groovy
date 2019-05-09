@@ -13,7 +13,6 @@
 package org.sonatype.nexus.coreui
 
 import java.util.stream.Collectors
-import java.util.stream.StreamSupport
 
 import javax.annotation.Nullable
 import javax.inject.Inject
@@ -25,6 +24,7 @@ import javax.validation.groups.Default
 
 import org.sonatype.nexus.common.app.BaseUrlHolder
 import org.sonatype.nexus.common.app.GlobalComponentLookupHelper
+import org.sonatype.nexus.common.entity.DetachedEntityId
 import org.sonatype.nexus.coreui.internal.search.BrowseableFormatXO
 import org.sonatype.nexus.extdirect.DirectComponent
 import org.sonatype.nexus.extdirect.DirectComponentSupport
@@ -44,7 +44,6 @@ import org.sonatype.nexus.repository.search.RebuildIndexTaskDescriptor
 import org.sonatype.nexus.repository.security.RepositoryAdminPermission
 import org.sonatype.nexus.repository.security.RepositoryPermissionChecker
 import org.sonatype.nexus.repository.security.RepositorySelector
-import org.sonatype.nexus.repository.security.RepositoryViewPermission
 import org.sonatype.nexus.repository.types.ProxyType
 import org.sonatype.nexus.scheduling.TaskConfiguration
 import org.sonatype.nexus.scheduling.TaskInfo
@@ -57,12 +56,11 @@ import org.sonatype.nexus.validation.group.Update
 
 import com.codahale.metrics.annotation.ExceptionMetered
 import com.codahale.metrics.annotation.Timed
-import com.google.common.collect.ImmutableList
-import com.google.common.collect.Iterables
 import com.softwarementors.extjs.djn.config.annotations.DirectAction
 import com.softwarementors.extjs.djn.config.annotations.DirectMethod
 import com.softwarementors.extjs.djn.config.annotations.DirectPollMethod
 import groovy.transform.PackageScope
+import org.apache.commons.lang3.StringUtils
 import org.apache.shiro.authz.annotation.RequiresAuthentication
 import org.hibernate.validator.constraints.NotEmpty
 
@@ -129,19 +127,18 @@ class RepositoryComponent
    return formats
   }
 
-  RepositoryViewPermission viewPermission(final Repository repository, final String action) {
-    return new RepositoryViewPermission(repository.getFormat().getValue(), repository.getName(),
-        ImmutableList.of(action))
-  }
-
   @DirectMethod
   @Timed
   @ExceptionMetered
   List<BrowseableFormatXO> getBrowseableFormats() {
-    Set<String> repoIds = StreamSupport.stream(repositoryManager.browse().spliterator(), false)
-        .filter { repository -> securityHelper.allPermitted(viewPermission(repository, BreadActions.BROWSE)) }
-        .map { repository -> repository.getFormat().getValue() }
-        .collect(Collectors.toSet())
+    Collection<Repository> browseableRepositories = repositoryPermissionChecker.
+        userCanBrowseRepositories(repositoryManager.browse())
+
+
+    Set<String> repoIds = browseableRepositories.stream().map { repository ->
+      repository.format.value
+    }.collect(Collectors.toSet())
+
     return repoIds.collect { id -> new BrowseableFormatXO(id: id) }
   }
 
@@ -214,6 +211,8 @@ class RepositoryComponent
         repositoryName: repositoryXO.name,
         recipeName: repositoryXO.recipe,
         online: repositoryXO.online,
+        routingRuleId: StringUtils.isNotBlank(repositoryXO.routingRuleId) ? new DetachedEntityId(
+            repositoryXO.routingRuleId) : null,
         attributes: repositoryXO.attributes
     )))
   }
@@ -235,6 +234,8 @@ class RepositoryComponent
 
     Configuration updatedConfiguration = repository.configuration.copy().with {
       online = repositoryXO.online
+      routingRuleId = StringUtils.isNotBlank(repositoryXO.routingRuleId) ? new DetachedEntityId(
+          repositoryXO.routingRuleId) : null
       attributes = repositoryXO.attributes
       return it
     }
@@ -287,6 +288,8 @@ class RepositoryComponent
         online: input.configuration.online,
         recipe: input.configuration.recipeName,
         status: buildStatus(input),
+        routingRuleId: StringUtils.
+            isNotBlank(input.configuration?.routingRuleId?.value) ? input.configuration.routingRuleId.value : '',
         attributes: filterAttributes(input.configuration.copy().attributes),
         url: "${BaseUrlHolder.get()}/repository/${input.name}/" // trailing slash is important
     )
@@ -372,15 +375,13 @@ class RepositoryComponent
       })
     }
 
-    repositories = repositoryPermissionChecker.userCanBrowseRepositories(Iterables.toArray(repositories, Repository.class))
+    repositories = repositoryPermissionChecker.userCanBrowseRepositories(repositories)
 
     return repositories
   }
 
   Iterable<Repository> browse() {
-    return repositoryManager.browse().findResults { Repository repository ->
-      securityHelper.allPermitted(adminPermission(repository, BreadActions.READ)) ? repository : null
-    }
+    return repositoryPermissionChecker.userHasRepositoryAdminPermission(repositoryManager.browse(), BreadActions.READ)
   }
 
   RepositoryAdminPermission adminPermission(final Repository repository, final String action) {

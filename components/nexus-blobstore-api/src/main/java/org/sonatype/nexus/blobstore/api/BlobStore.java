@@ -101,6 +101,13 @@ public interface BlobStore
   Blob create(InputStream blobData, Map<String, String> headers);
 
   /**
+   * Creates a new blob with the provided {@link BlobId}.
+   *
+   * @since 3.15
+   */
+  Blob create(InputStream blobData, Map<String, String> headers, @Nullable BlobId blobId);
+
+  /**
    * Imports a blob by creating a hard link, throwing {@link BlobStoreException} if that's not supported
    * from the source file's location.
    *
@@ -222,11 +229,11 @@ public interface BlobStore
   boolean undelete(@Nullable BlobStoreUsageChecker inUseChecker, BlobId blobId, BlobAttributes attributes, boolean isDryRun);
 
   /**
-   * Identifies if the instance is available to be written to
+   * Identifies if the storage backed by the instance is available to be written to
    * @return {@code true} if the blob store can be written to
    * @since 3.14
    */
-  boolean isWritable();
+  boolean isStorageAvailable();
 
   /**
    * Identifies if the instance can be a member of a group
@@ -235,4 +242,24 @@ public interface BlobStore
    * @since 3.14
    */
   default boolean isGroupable() { return true; }
+
+  /**
+   * Identifies if the instance is writable. The writable state is a configuration option and not representative of the
+   * underlying storage implementation. To communicate the underlying implementations status see
+   * {@link #isStorageAvailable()}
+   *
+   * @return {@code true} if the blob store is writable
+   * @since 3.15
+   */
+  default boolean isWritable() {
+    return getBlobStoreConfiguration().isWritable();
+  }
+
+  /**
+   * Returns true if the blobstore has been started.
+   *
+   * @return {@code true} if the blobstore has been started.
+   * @since 3.15
+   */
+  boolean isStarted();
 }

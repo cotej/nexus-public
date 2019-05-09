@@ -23,6 +23,7 @@ Ext.define('NX.coreui.view.repository.recipe.DockerProxy', {
   requires: [
     'NX.coreui.view.repository.facet.ProxyFacet',
     'NX.coreui.view.repository.facet.StorageFacet',
+    'NX.coreui.view.repository.facet.RoutingRuleFacet',
     'NX.coreui.view.repository.facet.HttpClientFacet',
     'NX.coreui.view.repository.facet.NegativeCacheFacet',
     'NX.coreui.view.repository.facet.DockerConnectorFacet',
@@ -42,6 +43,7 @@ Ext.define('NX.coreui.view.repository.recipe.DockerProxy', {
       {xtype: 'nx-coreui-repository-docker-v1-facet'},
       {xtype: 'nx-coreui-repository-proxy-facet'},
       {xtype: 'nx-coreui-repository-storage-facet'},
+      {xtype: 'nx-coreui-repository-routing-rule-facet'},
       {xtype: 'nx-coreui-repository-negativecache-facet'},
       {xtype: 'nx-coreui-repository-cleanup-policy-facet'},
       {xtype: 'nx-coreui-repository-httpclient-facet'}
@@ -49,6 +51,7 @@ Ext.define('NX.coreui.view.repository.recipe.DockerProxy', {
 
     me.callParent();
 
+    me.down('#remoteUrl').setHelpText(NX.I18n.get('Repository_Facet_ProxyFacet_Docker_Remote_HelpText'));
     me.down('#proxyFieldSet').add(1, {xtype: 'nx-coreui-repository-docker-proxy-facet'});
   }
 });

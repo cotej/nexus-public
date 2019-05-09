@@ -28,6 +28,7 @@ import org.sonatype.nexus.repository.maven.internal.matcher.MavenArchetypeCatalo
 import org.sonatype.nexus.repository.maven.internal.matcher.MavenIndexMatcher
 import org.sonatype.nexus.repository.maven.internal.matcher.MavenPathMatcher
 import org.sonatype.nexus.repository.maven.internal.matcher.MavenRepositoryMetadataMatcher
+import org.sonatype.nexus.repository.routing.RoutingRuleHandler
 import org.sonatype.nexus.repository.security.SecurityFacet
 import org.sonatype.nexus.repository.security.SecurityHandler
 import org.sonatype.nexus.repository.storage.StorageFacet
@@ -38,6 +39,7 @@ import org.sonatype.nexus.repository.view.handlers.ConditionalRequestHandler
 import org.sonatype.nexus.repository.view.handlers.ContentHeadersHandler
 import org.sonatype.nexus.repository.view.handlers.ExceptionHandler
 import org.sonatype.nexus.repository.view.handlers.HandlerContributor
+import org.sonatype.nexus.repository.view.handlers.LastDownloadedHandler
 import org.sonatype.nexus.repository.view.handlers.TimingHandler
 import org.sonatype.nexus.repository.view.matchers.ActionMatcher
 import org.sonatype.nexus.repository.view.matchers.logic.LogicMatchers
@@ -69,6 +71,9 @@ abstract class MavenRecipeSupport
   TimingHandler timingHandler
 
   @Inject
+  RoutingRuleHandler routingHandler
+
+  @Inject
   SecurityHandler securityHandler
 
   @Inject
@@ -85,6 +90,9 @@ abstract class MavenRecipeSupport
 
   @Inject
   HandlerContributor handlerContributor
+  
+  @Inject
+  LastDownloadedHandler lastDownloadedHandler
 
   final MavenPathParser mavenPathParser
 
@@ -101,6 +109,7 @@ abstract class MavenRecipeSupport
         .matcher(new MavenPathMatcher(mavenPathParser))
         .handler(timingHandler)
         .handler(securityHandler)
+        .handler(routingHandler)
         .handler(exceptionHandler)
         .handler(handlerContributor)
         .handler(conditionalRequestHandler)
@@ -111,6 +120,7 @@ abstract class MavenRecipeSupport
         .matcher(new MavenRepositoryMetadataMatcher(mavenPathParser))
         .handler(timingHandler)
         .handler(securityHandler)
+        .handler(routingHandler)
         .handler(exceptionHandler)
         .handler(conditionalRequestHandler)
   }
@@ -131,6 +141,7 @@ abstract class MavenRecipeSupport
         )
         .handler(timingHandler)
         .handler(securityHandler)
+        .handler(routingHandler)
         .handler(exceptionHandler)
         .handler(conditionalRequestHandler)
   }
@@ -140,6 +151,7 @@ abstract class MavenRecipeSupport
         .matcher(new MavenArchetypeCatalogMatcher(mavenPathParser))
         .handler(timingHandler)
         .handler(securityHandler)
+        .handler(routingHandler)
         .handler(exceptionHandler)
         .handler(conditionalRequestHandler)
   }

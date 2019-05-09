@@ -24,11 +24,14 @@ import org.sonatype.nexus.security.authc.AuthenticationEvent;
 
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationToken;
+import org.apache.shiro.session.mgt.eis.CachingSessionDAO;
+import org.apache.shiro.session.mgt.eis.SessionDAO;
 import org.apache.shiro.subject.Subject;
 import org.apache.shiro.web.mgt.DefaultWebSecurityManager;
 import org.apache.shiro.web.mgt.WebSecurityManager;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.sonatype.nexus.common.app.ManagedLifecycleManager.isShuttingDown;
 
 /**
  * Custom {@link WebSecurityManager}.
@@ -63,6 +66,10 @@ public class NexusWebSecurityManager
    */
   @Override
   public Subject login(Subject subject, final AuthenticationToken token) {
+    //anonymous user isn't allowed to authenticate
+    if ("anonymous".equals(token.getPrincipal())) {
+      throw new AuthenticationException("Cannot login with anonymous user");
+    }
     try {
       subject = super.login(subject, token);
       UserIdMdcHelper.set(subject);
@@ -82,5 +89,20 @@ public class NexusWebSecurityManager
   public void logout(final Subject subject) {
     super.logout(subject);
     UserIdMdcHelper.unset();
+  }
+
+  @Override
+  public void destroy() {
+    // underlying manager cannot be restarted, so avoid shutting it down when bouncing the service
+    if (isShuttingDown()) {
+      super.destroy();
+    }
+    else {
+      // null out the session cache to force it to be recreated on the next request after bouncing
+      SessionDAO sessionDAO = ((NexusWebSessionManager) getSessionManager()).getSessionDAO();
+      if (sessionDAO instanceof CachingSessionDAO) {
+        ((CachingSessionDAO) sessionDAO).setActiveSessionsCache(null);
+      }
+    }
   }
 }

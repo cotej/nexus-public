@@ -62,7 +62,7 @@ public class StateGuardLifecycleSupport
   }
 
   @Override
-  @Transitions(from = {NEW, STOPPED}, to = STARTED)
+  @Transitions(from = {NEW, STOPPED, FAILED}, to = STARTED)
   public void start() throws Exception {
     doStart();
   }
@@ -74,7 +74,7 @@ public class StateGuardLifecycleSupport
   /**
    * @since 3.2.1
    */
-  protected boolean isStarted() {
+  public boolean isStarted() {
     return getStateGuard().is(STARTED);
   }
 

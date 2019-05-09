@@ -20,11 +20,13 @@ import org.sonatype.goodies.testsupport.TestSupport;
 import org.sonatype.nexus.blobstore.api.Blob;
 import org.sonatype.nexus.blobstore.api.BlobStore;
 import org.sonatype.nexus.blobstore.api.BlobStoreManager;
+import org.sonatype.nexus.blobstore.restore.RestoreBlobData;
 import org.sonatype.nexus.common.log.DryRunPrefix;
 import org.sonatype.nexus.common.node.NodeAccess;
 import org.sonatype.nexus.repository.Repository;
 import org.sonatype.nexus.repository.manager.RepositoryManager;
 import org.sonatype.nexus.repository.pypi.PyPiFacet;
+import org.sonatype.nexus.repository.pypi.repair.PyPiRepairIndexComponent;
 import org.sonatype.nexus.repository.storage.AssetBlob;
 import org.sonatype.nexus.repository.storage.Bucket;
 import org.sonatype.nexus.repository.storage.StorageFacet;
@@ -35,6 +37,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -42,6 +45,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.sonatype.nexus.common.hash.HashAlgorithm.MD5;
 import static org.sonatype.nexus.common.hash.HashAlgorithm.SHA1;
@@ -89,6 +93,18 @@ public class PyPiRestoreBlobStrategyTest
   @Mock
   BlobStore blobStore;
 
+  @Mock
+  PyPiRepairIndexComponent pyPiRepairIndexComponent;
+
+  @Mock
+  PyPiRestoreBlobDataFactory pyPiRestoreBlobDataFactory;
+
+  @Mock
+  PyPiRestoreBlobData pyPiRestoreBlobData;
+
+  @Mock
+  private RestoreBlobData restoreBlobData;
+
   Properties packageProps = new Properties();
 
   Properties indexProps = new Properties();
@@ -97,8 +113,12 @@ public class PyPiRestoreBlobStrategyTest
 
   @Before
   public void setup() {
-    underTest =
-        new PyPiRestoreBlobStrategy(nodeAccess, repositoryManager, blobStoreManager, new DryRunPrefix("dryrun"));
+    underTest = new PyPiRestoreBlobStrategy(nodeAccess,
+        repositoryManager,
+        blobStoreManager,
+        new DryRunPrefix("dryrun"),
+        pyPiRepairIndexComponent,
+        pyPiRestoreBlobDataFactory);
 
     packageProps.setProperty("@BlobStore.created-by", "admin");
     packageProps.setProperty("size", "5674");
@@ -131,10 +151,16 @@ public class PyPiRestoreBlobStrategyTest
     when(blob.getInputStream()).thenReturn(new ByteArrayInputStream(blobBytes));
 
     when(blobStoreManager.get(TEST_BLOB_STORE_NAME)).thenReturn(blobStore);
+
+    when(pyPiRestoreBlobDataFactory.create(any())).thenReturn(pyPiRestoreBlobData);
+    when(pyPiRestoreBlobData.getBlobData()).thenReturn(restoreBlobData);
   }
 
   @Test
   public void testPackageRestore() throws Exception {
+    when(restoreBlobData.getRepository()).thenReturn(repository);
+    when(pyPiRestoreBlobData.getBlobData().getBlobName()).thenReturn(PACKAGE_PATH);
+
     underTest.restore(packageProps, blob, TEST_BLOB_STORE_NAME, false);
 
     verify(pyPiFacet).assetExists(PACKAGE_PATH);
@@ -145,6 +171,9 @@ public class PyPiRestoreBlobStrategyTest
 
   @Test
   public void testIndexRestore() throws Exception {
+    when(restoreBlobData.getRepository()).thenReturn(repository);
+    when(pyPiRestoreBlobData.getBlobData().getBlobName()).thenReturn(INDEX_PATH);
+
     underTest.restore(indexProps, blob, TEST_BLOB_STORE_NAME, false);
 
     verify(pyPiFacet).assetExists(INDEX_PATH);
@@ -164,6 +193,8 @@ public class PyPiRestoreBlobStrategyTest
 
   @Test
   public void testRestoreSkipExistingPackage() {
+    when(restoreBlobData.getRepository()).thenReturn(repository);
+    when(pyPiRestoreBlobData.getBlobData().getBlobName()).thenReturn(PACKAGE_PATH);
     when(pyPiFacet.assetExists(PACKAGE_PATH)).thenReturn(true);
 
     underTest.restore(packageProps, blob, TEST_BLOB_STORE_NAME, false);
@@ -176,5 +207,29 @@ public class PyPiRestoreBlobStrategyTest
   @Test
   public void testCorrectChecksums() {
     assertThat(underTest.getHashAlgorithms(), equalTo(ImmutableList.of(SHA1, SHA256, MD5)));
+  }
+
+  @Test
+  public void testRestoreRepairIfAssetsUpdated() {
+    underTest.after(true, repository);
+
+    verify(pyPiRepairIndexComponent).repairRepository(repository);
+    verifyNoMoreInteractions(pyPiRepairIndexComponent);
+  }
+
+  @Test
+  public void testRestoreDoesNotRepairIfAssetsNotUpdated() {
+    underTest.after(false, repository);
+
+    verifyZeroInteractions(pyPiRepairIndexComponent);
+  }
+
+  @Test
+  public void blobDataIsCreated() {
+    when(pyPiRestoreBlobDataFactory.create(restoreBlobData)).thenReturn(pyPiRestoreBlobData);
+
+    assertThat(underTest.createRestoreData(restoreBlobData), is(pyPiRestoreBlobData));
+    verify(pyPiRestoreBlobDataFactory).create(restoreBlobData);
+    verifyNoMoreInteractions(pyPiRestoreBlobDataFactory, restoreBlobData);
   }
 }

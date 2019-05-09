@@ -13,6 +13,7 @@
 package org.sonatype.nexus.supportzip;
 
 import java.io.OutputStream;
+import java.io.Serializable;
 
 /**
  * Generates a support ZIP file.
@@ -25,7 +26,10 @@ public interface SupportZipGenerator
    * Request to generate a support ZIP file.
    */
   class Request
+      implements Serializable
   {
+    private static final long serialVersionUID = 6382836653403012753L;
+
     /**
      * Include system information report.
      */
@@ -60,6 +64,12 @@ public interface SupportZipGenerator
      * Include task log files.
      */
     private boolean taskLog;
+
+    /**
+     * Include audit log files.
+     * @since 3.16
+     */
+    private boolean auditLog;
 
     /**
      * Include JMX information.
@@ -132,6 +142,14 @@ public interface SupportZipGenerator
       this.taskLog = taskLog;
     }
 
+    public boolean isAuditLog() {
+      return auditLog;
+    }
+
+    public void setAuditLog(final boolean auditLog) {
+      this.auditLog = auditLog;
+    }
+
     public boolean isJmx() {
       return jmx;
     }
@@ -166,6 +184,7 @@ public interface SupportZipGenerator
           ", security=" + security +
           ", log=" + log +
           ", tasklog=" + taskLog +
+          ", auditlog=" + auditLog +
           ", jmx=" + jmx +
           ", limitFileSizes=" + limitFileSizes +
           ", limitZipSize=" + limitZipSize +
@@ -176,8 +195,10 @@ public interface SupportZipGenerator
   /**
    * Result of support ZIP generate request.
    */
-  class Result
+  class Result implements Serializable
   {
+    private static final long serialVersionUID = -3253827134366752809L;
+
     /**
      * True if the ZIP or any of its contents had been truncated.
      */
@@ -245,6 +266,11 @@ public interface SupportZipGenerator
    * Generate a support ZIP for the given request.
    */
   Result generate(Request request);
+
+  /**
+   * Generate a support ZIP for the given request with a custom prefix.
+   */
+  Result generate(Request request, String prefix);
 
   /**
    * Generate a support ZIP.

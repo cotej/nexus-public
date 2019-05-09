@@ -20,6 +20,7 @@ import org.sonatype.nexus.repository.RecipeSupport
 import org.sonatype.nexus.repository.Type
 import org.sonatype.nexus.repository.attributes.AttributesFacet
 import org.sonatype.nexus.repository.http.PartialFetchHandler
+import org.sonatype.nexus.repository.routing.RoutingRuleHandler
 import org.sonatype.nexus.repository.search.SearchFacet
 import org.sonatype.nexus.repository.security.SecurityHandler
 import org.sonatype.nexus.repository.storage.StorageFacet
@@ -29,6 +30,7 @@ import org.sonatype.nexus.repository.view.Route.Builder
 import org.sonatype.nexus.repository.view.Router
 import org.sonatype.nexus.repository.view.handlers.ConditionalRequestHandler
 import org.sonatype.nexus.repository.view.handlers.HandlerContributor
+import org.sonatype.nexus.repository.view.handlers.LastDownloadedHandler
 import org.sonatype.nexus.repository.view.handlers.TimingHandler
 import org.sonatype.nexus.repository.view.matchers.ActionMatcher
 import org.sonatype.nexus.repository.view.matchers.LiteralMatcher
@@ -71,6 +73,9 @@ abstract class NpmRecipeSupport
   TimingHandler timingHandler
 
   @Inject
+  RoutingRuleHandler routingHandler
+
+  @Inject
   SecurityHandler securityHandler
 
   @Inject
@@ -84,6 +89,9 @@ abstract class NpmRecipeSupport
 
   @Inject
   HandlerContributor handlerContributor
+  
+  @Inject
+  LastDownloadedHandler lastDownloadedHandler
 
   protected NpmRecipeSupport(final Type type,
                              final Format format)

@@ -43,7 +43,10 @@ class PyPiHostedRecipe
   Provider<PyPiHostedFacet> hostedFacet
 
   @Inject
-  Provider<PyPiHostedComponentMaintenance> componentMaintenanceFacet
+  Provider<PyPiComponentMaintenance> componentMaintenanceFacet
+
+  @Inject
+  Provider<PyPiIndexFacet> indexFacet
 
   @Inject
   HostedHandlers hostedHandlers
@@ -60,6 +63,7 @@ class PyPiHostedRecipe
     repository.attach(storageFacet.get())
     repository.attach(pyPiFacet.get())
     repository.attach(componentMaintenanceFacet.get())
+    repository.attach(indexFacet.get())
     repository.attach(hostedFacet.get())
     repository.attach(searchFacet.get())
     repository.attach(attributesFacet.get())
@@ -82,6 +86,19 @@ class PyPiHostedRecipe
         .handler(hostedHandlers.search())
         .create())
 
+    builder.route(rootIndexMatcher()
+        .handler(timingHandler)
+        .handler(assetKindHandler.rcurry(AssetKind.ROOT_INDEX))
+        .handler(securityHandler)
+        .handler(exceptionHandler)
+        .handler(conditionalRequestHandler)
+        .handler(partialFetchHandler)
+        .handler(contentHeadersHandler)
+        .handler(unitOfWorkHandler)
+        .handler(lastDownloadedHandler)
+        .handler(hostedHandlers.getRootIndex)
+        .create())
+
     builder.route(indexMatcher()
         .handler(timingHandler)
         .handler(assetKindHandler.rcurry(AssetKind.INDEX))
@@ -91,6 +108,7 @@ class PyPiHostedRecipe
         .handler(partialFetchHandler)
         .handler(contentHeadersHandler)
         .handler(unitOfWorkHandler)
+        .handler(lastDownloadedHandler)
         .handler(hostedHandlers.getIndex)
         .create())
 
@@ -104,6 +122,7 @@ class PyPiHostedRecipe
         .handler(partialFetchHandler)
         .handler(contentHeadersHandler)
         .handler(unitOfWorkHandler)
+        .handler(lastDownloadedHandler)
         .handler(hostedHandlers.getPackage)
         .create())
 

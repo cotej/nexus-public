@@ -49,6 +49,7 @@ Ext.define('NX.app.PluginStrings', {
     Header_BrowseMode_Tooltip: 'Browse server contents',
     Header_AdminMode_Title: 'Administration',
     Header_AdminMode_Tooltip: 'Server administration and configuration',
+    Header_Health_Tooltip: 'System Status',
     Header_QuickSearch_Empty: 'Search components',
     Header_QuickSearch_Tooltip: 'Quick component keyword search',
     Header_Refresh_Tooltip: 'Refresh current view and data',
@@ -184,8 +185,13 @@ Ext.define('NX.app.PluginStrings', {
 
     // SearchBoxTip
     SearchBoxTip_ExactMatch: 'Use <b>""</b> for exact match - "example"',
-    SearchBoxTip_Wildcard: 'Use <b>*</b> for wildcard - exampl*',
-    SearchBoxTip_LearnMore: 'Learn more...'
+    SearchBoxTip_Wildcard: 'Use <b>*</b> or <b>?</b> for wildcards - ex?mpl*',
+    SearchBoxTip_LearnMore: 'Learn more...',
+
+    // DependencySnippet Panel
+    DependencySnippetPanel_Title: 'Usage',
+    DependencySnippetPanel_Copy_Button_Tooltip: 'Copy snippet to clipboard'
+
   }
 }, function(obj) {
   NX.I18n.register(obj);

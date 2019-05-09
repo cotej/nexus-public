@@ -12,9 +12,11 @@
  */
 package org.sonatype.nexus.blobstore.restore;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import javax.inject.Inject;
@@ -35,6 +37,7 @@ import org.sonatype.nexus.scheduling.Cancelable;
 import org.sonatype.nexus.scheduling.TaskSupport;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Optional.ofNullable;
 import static org.sonatype.nexus.blobstore.api.BlobAttributesConstants.HEADER_PREFIX;
 import static org.sonatype.nexus.blobstore.restore.DefaultIntegrityCheckStrategy.DEFAULT_NAME;
 import static org.sonatype.nexus.blobstore.restore.RestoreMetadataTaskDescriptor.BLOB_STORE_NAME_FIELD_ID;
@@ -116,39 +119,58 @@ public class RestoreMetadataTask
     ProgressLogIntervalHelper progressLogger = new ProgressLogIntervalHelper(log, 60);
     long processed = 0;
     long undeleted = 0;
+    boolean updateAssets = !dryRun && restore;
+    Set<Repository> touchedRepositories = new HashSet<>();
 
     if (dryRun) {
       log.info("{}Actions will be logged, but no changes will be made.", logPrefix);
     }
     for (BlobId blobId : (Iterable<BlobId>)store.getBlobIdStream()::iterator) {
-      Optional<Context> context = buildContext(blobStoreName, store, blobId);
-      if (context.isPresent()) {
-        Context c =  context.get();
-        if (restore && c.restoreBlobStrategy != null && !c.blobAttributes.isDeleted()) {
-          c.restoreBlobStrategy.restore(c.properties, c.blob, c.blobStoreName, dryRun);
+      try {
+        Optional<Context> context = buildContext(blobStoreName, store, blobId);
+        if (context.isPresent()) {
+          Context c =  context.get();
+          if (restore && c.restoreBlobStrategy != null && !c.blobAttributes.isDeleted()) {
+            c.restoreBlobStrategy.restore(c.properties, c.blob, c.blobStoreName, dryRun);
+          }
+          if (undelete &&
+              store.undelete(blobStoreUsageChecker, c.blobId, c.blobAttributes, dryRun))
+          {
+            undeleted++;
+          }
+
+          if (updateAssets) {
+            touchedRepositories.add(c.repository);
+          }
         }
-        if (undelete &&
-            store.undelete(blobStoreUsageChecker, c.blobId, c.blobAttributes, dryRun))
-        {
-          undeleted++;
+
+        processed++;
+
+        progressLogger.info("{}Elapsed time: {}, processed: {}, un-deleted: {}", logPrefix, progressLogger.getElapsed(),
+                            processed, undeleted);
+
+        if (isCanceled()) {
+          break;
         }
+      } catch (Exception e) {
+        log.error("Error restoring blob {}", blobId, e);
       }
+    }
 
-      processed++;
+    updateAssets(touchedRepositories, updateAssets);
 
-      progressLogger.info("{}Elapsed time: {}, processed: {}, un-deleted: {}", logPrefix, progressLogger.getElapsed(),
-                          processed, undeleted);
+    progressLogger.flush();
+  }
 
+  private void updateAssets(final Set<Repository> repositories, final boolean updateAssets) {
+    for (Repository repository : repositories) {
       if (isCanceled()) {
         break;
       }
-    }
 
-    for (RestoreBlobStrategy strategy : restoreBlobStrategies.values()) {
-      strategy.after(!dryRun && restore);
+      ofNullable(restoreBlobStrategies.get(repository.getFormat().getValue()))
+          .ifPresent(strategy -> strategy.after(updateAssets, repository));
     }
-
-    progressLogger.flush();
   }
 
   private void blobStoreIntegrityCheck(final boolean integrityCheck, final String blobStoreId) {

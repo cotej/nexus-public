@@ -42,6 +42,7 @@ import org.sonatype.nexus.repository.security.VariableResolverAdapter;
 import org.sonatype.nexus.repository.security.VariableResolverAdapterManager;
 import org.sonatype.nexus.repository.storage.Asset;
 import org.sonatype.nexus.repository.storage.Bucket;
+import org.sonatype.nexus.repository.storage.BucketStore;
 import org.sonatype.nexus.repository.storage.Component;
 import org.sonatype.nexus.repository.storage.ComponentFinder;
 import org.sonatype.nexus.repository.storage.ComponentMaintenance;
@@ -50,8 +51,7 @@ import org.sonatype.nexus.repository.storage.DefaultComponentFinder;
 import org.sonatype.nexus.repository.storage.StorageFacet;
 import org.sonatype.nexus.repository.storage.StorageTx;
 import org.sonatype.nexus.security.BreadActions;
-import org.sonatype.nexus.selector.CselExpressionValidator;
-import org.sonatype.nexus.selector.JexlExpressionValidator;
+import org.sonatype.nexus.selector.SelectorFactory;
 import org.sonatype.nexus.selector.VariableSource;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -111,16 +112,16 @@ public class ComponentComponentTest
   BrowseService browseService;
 
   @Mock
-  JexlExpressionValidator jexlExpressionValidator;
-
-  @Mock
-  CselExpressionValidator cselExpressionValidator;
+  SelectorFactory selectorFactory;
 
   @Mock
   Map<String, ComponentFinder> componentFinders;
 
   @Mock
   DefaultComponentFinder defaultComponentFinder;
+
+  @Mock
+  BucketStore bucketStore;
 
   private ObjectMapper objectMapper;
 
@@ -135,10 +136,10 @@ public class ComponentComponentTest
     underTest.setVariableResolverAdapterManager(variableResolverAdapterManager);
     underTest.setMaintenanceService(maintenanceService);
     underTest.setBrowseService(browseService);
-    underTest.setJexlExpressionValidator(jexlExpressionValidator);
-    underTest.setCselExpressionValidator(cselExpressionValidator);
+    underTest.setSelectorFactory(selectorFactory);
     underTest.setObjectMapper(objectMapper);
     underTest.setComponentFinders(componentFinders);
+    underTest.setBucketStore(bucketStore);
 
     when(repositoryManager.get("testRepositoryName")).thenReturn(repository);
     when(repository.getName()).thenReturn("testRepositoryName");
@@ -216,12 +217,20 @@ public class ComponentComponentTest
   }
 
   @Test
+  public void testDeleteFolder() {
+    underTest.deleteFolder("somePath", "testRepositoryName");
+
+    verify(repositoryManager).get("testRepositoryName");
+    verify(maintenanceService).deleteFolder(eq(repository), eq("somePath"));
+  }
+
+  @Test
   public void testReadComponent() {
     Component component = mock(Component.class);
     Asset asset = mock(Asset.class);
     EntityMetadata entityMetadata = mock(EntityMetadata.class);
     VariableSource variableSource = mock(VariableSource.class);
-    when(contentPermissionChecker.isPermitted(any(),any(), eq(BreadActions.BROWSE), any())).thenReturn(true);
+    when(contentPermissionChecker.isPermitted(anyString(),any(), eq(BreadActions.BROWSE), any())).thenReturn(true);
     when(component.getEntityMetadata()).thenReturn(entityMetadata);
     when(entityMetadata.getId()).thenReturn(new DetachedEntityId("someid"));
     when(storageTx.findComponent(eq(new DetachedEntityId("someid")))).thenReturn(component);
@@ -237,7 +246,7 @@ public class ComponentComponentTest
   public void testReadComponent_notAllowed() {
     Component component = mock(Component.class);
     Asset asset = mock(Asset.class);
-    when(contentPermissionChecker.isPermitted(any(),any(), any(), any())).thenReturn(false);
+    when(contentPermissionChecker.isPermitted(anyString(),any(), any(), any())).thenReturn(false);
     when(storageTx.findComponent(eq(new DetachedEntityId("someid")))).thenReturn(component);
     when(storageTx.browseAssets(component)).thenReturn(Arrays.asList(asset));
 
@@ -280,28 +289,36 @@ public class ComponentComponentTest
   @Test
   public void testReadAsset() {
     Asset asset = mock(Asset.class);
+    Bucket bucket = mock(Bucket.class);
+    EntityId bucketId = mock(EntityId.class);
     EntityMetadata entityMetadata = mock(EntityMetadata.class);
     when(asset.getEntityMetadata()).thenReturn(entityMetadata);
+    when(asset.bucketId()).thenReturn(bucketId);
     when(asset.attributes()).thenReturn(new NestedAttributesMap("attributes", new HashMap<>()));
     when(entityMetadata.getId()).thenReturn(new DetachedEntityId("someid"));
-    when(contentPermissionChecker.isPermitted(any(),any(), eq(BreadActions.BROWSE), any())).thenReturn(true);
+    when(contentPermissionChecker.isPermitted(anyString(),any(), eq(BreadActions.BROWSE), any())).thenReturn(true);
 
-    when(browseService.getLastThirtyDays(asset)).thenReturn(10L);
     when(browseService.getAssetById(new DetachedEntityId("someid"), repository)).thenReturn(asset);
-    when(browseService.getRepositoryBucketNames(repository))
-        .thenReturn(Collections.singletonMap(new DetachedEntityId("someid"), "testBucketName"));
+    when(bucketStore.getById(bucketId)).thenReturn(bucket);
+    when(bucket.getRepositoryName()).thenReturn("testRepositoryName");
     AssetXO assetXO = underTest.readAsset("someid", "testRepositoryName");
 
     assertThat(assetXO, is(notNullValue()));
     assertThat(assetXO.getId(), is("someid"));
-    assertThat(assetXO.getDownloadCount(), is(10L));
+    assertThat(assetXO.getRepositoryName(), is("testRepositoryName"));
+    assertThat(assetXO.getContainingRepositoryName(), is("testRepositoryName"));
   }
 
   @Test
   public void testReadAsset_notAllowed() {
     Asset asset = mock(Asset.class);
+    Bucket bucket = mock(Bucket.class);
+    EntityId bucketId = mock(EntityId.class);
+    when(asset.bucketId()).thenReturn(bucketId);
+    when(bucketStore.getById(bucketId)).thenReturn(bucket);
+    when(bucket.getRepositoryName()).thenReturn("testRepositoryName");
     when(browseService.getAssetById(new DetachedEntityId("someid"), repository)).thenReturn(asset);
-    when(contentPermissionChecker.isPermitted(any(),any(), any(), any())).thenReturn(false);
+    when(contentPermissionChecker.isPermitted(anyString(),any(), any(), any())).thenReturn(false);
 
     try{
       underTest.readAsset("someid", "testRepositoryName");
@@ -330,7 +347,7 @@ public class ComponentComponentTest
         .thenReturn(new BrowseResult<Asset>(0, Collections.emptyList()));
     underTest.previewAssets(createParameters("jexl", "foo"));
 
-    verify(jexlExpressionValidator).validate("foo");
+    verify(selectorFactory).validateSelector("jexl", "foo");
   }
 
   @Test
@@ -339,7 +356,7 @@ public class ComponentComponentTest
         .thenReturn(new BrowseResult<Asset>(0, Collections.emptyList()));
     underTest.previewAssets(createParameters("csel", "foo"));
 
-    verify(cselExpressionValidator).validate("foo");
+    verify(selectorFactory).validateSelector("csel", "foo");
   }
 
   private StoreLoadParameters createParameters(final String type, final String expression) {
@@ -359,7 +376,7 @@ public class ComponentComponentTest
     return filter;
   }
 
-  private Component makeTestComponent(String format) {
+  private Component makeTestComponent(final String format) {
     Component component = new DefaultComponent();
     component.setEntityMetadata(new DetachedEntityMetadata(
         new DetachedEntityId("testComponentId"),
@@ -371,7 +388,7 @@ public class ComponentComponentTest
     return component;
   }
 
-  private void deleteComponent(Component component, String repositoryName) {
+  private void deleteComponent(final Component component, final String repositoryName) {
     ComponentXO componentXO = ComponentComponent.COMPONENT_CONVERTER(component, repositoryName);
     try {
       underTest.deleteComponent(objectMapper.writeValueAsString(componentXO));

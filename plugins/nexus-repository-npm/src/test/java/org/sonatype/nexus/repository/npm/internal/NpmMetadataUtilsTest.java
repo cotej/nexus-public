@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -36,16 +37,21 @@ import static org.junit.Assert.assertNull;
 public class NpmMetadataUtilsTest
     extends TestSupport
 {
+  @Before
+  public void setUp() {
+    BaseUrlHolder.unset();
+  }
+
   @Test
   public void extractTarballName() {
     assertThat(NpmMetadataUtils.extractTarballName("somename.tgz"), equalTo("somename.tgz"));
     assertThat(NpmMetadataUtils.extractTarballName("package/-/tarball.tgz"), equalTo("tarball.tgz"));
     assertThat(NpmMetadataUtils.extractTarballName("@scope/package/-/tarball.tgz"), equalTo("tarball.tgz"));
     assertThat(NpmMetadataUtils.extractTarballName(
-            "http://localhost:8081/repository/npmhosted/simple-npm-package/-/simple-npm-package-2.0.1.tgz"),
+        "http://localhost:8081/repository/npmhosted/simple-npm-package/-/simple-npm-package-2.0.1.tgz"),
         equalTo("simple-npm-package-2.0.1.tgz"));
     assertThat(NpmMetadataUtils.extractTarballName(
-            "http://localhost:8081/repository/npmhosted/@scope/simple-npm-package/-/simple-npm-package-2.0.1.tgz"),
+        "http://localhost:8081/repository/npmhosted/@scope/simple-npm-package/-/simple-npm-package-2.0.1.tgz"),
         equalTo("simple-npm-package-2.0.1.tgz"));
   }
 
@@ -97,7 +103,8 @@ public class NpmMetadataUtilsTest
     assertThat(result.backing(), hasEntry("name", "dominant"));
     assertThat(result.child("versions").child("1.0").backing(), hasEntry("foo", "baz"));
     assertThat(result.child("versions").child("1.0").backing(), hasEntry("foo1", "bar1"));
-    assertThat(result.child("versions").child("1.0").child("author").backing(), not(hasEntry("url", "http://www.example.com")));
+    assertThat(result.child("versions").child("1.0").child("author").backing(),
+        not(hasEntry("url", "http://www.example.com")));
     assertThat(result.child("versions").child("1.0").child("author").backing(), hasEntry("email", "none@example.com"));
     assertThat(result.child("versions").child("1.0").child("dependencies").backing(), not(hasEntry("a", "1.0")));
     assertThat(result.child("versions").child("1.0").child("dependencies").backing(), hasEntry("b", "2.0"));
@@ -117,12 +124,16 @@ public class NpmMetadataUtilsTest
     recessive.child("versions").child("1.0").set("version", "1.0");
     recessive.child("versions").child("1.0").set("foo", "bar");
     recessive.child("versions").child("1.0").set("foo1", "bar1");
+    recessive.child("versions").child("2.0").set("version", "2.0");
+    recessive.child("versions").child("2.0").set("foo", "bar");
     NestedAttributesMap dominant = new NestedAttributesMap("dominant", Maps.newHashMap());
     dominant.set("_id", "id");
     dominant.set("name", "dominant");
     dominant.child("versions").child("1.0").set("version", "1.0");
     dominant.child("versions").child("1.0").set("foo", "baz");
     dominant.child("versions").child("1.0").set("foo2", "bar2");
+    dominant.child("versions").child("1.1").set("version", "1.1");
+    dominant.child("versions").child("1.1").set("foo", "bar");
 
     NestedAttributesMap result = NpmMetadataUtils.merge("theKey", ImmutableList.of(recessive, dominant));
 
@@ -133,6 +144,8 @@ public class NpmMetadataUtilsTest
     assertThat(result.child("versions").child("1.0").backing(), hasEntry("foo", "baz"));
     assertThat(result.child("versions").child("1.0").backing(), not(hasEntry("foo1", "bar1")));
     assertThat(result.child("versions").child("1.0").backing(), hasEntry("foo2", "bar2"));
+    assertThat(result.child("versions").child("1.1").backing(), hasEntry("foo", "bar"));
+    assertThat(result.child("versions").child("2.0").backing(), hasEntry("foo", "bar"));
   }
 
   @Test
@@ -161,23 +174,23 @@ public class NpmMetadataUtilsTest
 
   @Test
   public void selectVersionByTarballNameTest() {
-      NestedAttributesMap packageRoot = new NestedAttributesMap("package", Maps.newHashMap());
-      packageRoot.set("_id", "id");
-      packageRoot.set("name", "package");
-      packageRoot.child("versions").child("1.0").set("name", "package");
-      packageRoot.child("versions").child("1.0").set("version", "1.0");
-      packageRoot.child("versions").child("1.0").child("dist").set("tarball", "http://example.com/path/package-1.0.tgz");
-      packageRoot.child("versions").child("2.0").set("name", "package");
-      packageRoot.child("versions").child("2.0").set("version", "2.0");
-      packageRoot.child("versions").child("2.0").child("dist").set("tarball", "http://example.com/path/package-2.0.tgz");
+    NestedAttributesMap packageRoot = new NestedAttributesMap("package", Maps.newHashMap());
+    packageRoot.set("_id", "id");
+    packageRoot.set("name", "package");
+    packageRoot.child("versions").child("1.0").set("name", "package");
+    packageRoot.child("versions").child("1.0").set("version", "1.0");
+    packageRoot.child("versions").child("1.0").child("dist").set("tarball", "http://example.com/path/package-1.0.tgz");
+    packageRoot.child("versions").child("2.0").set("name", "package");
+    packageRoot.child("versions").child("2.0").set("version", "2.0");
+    packageRoot.child("versions").child("2.0").child("dist").set("tarball", "http://example.com/path/package-2.0.tgz");
 
-      NestedAttributesMap v1 = NpmMetadataUtils.selectVersionByTarballName(packageRoot, "package-1.0.tgz");
-      NestedAttributesMap v2 = NpmMetadataUtils.selectVersionByTarballName(packageRoot, "package-2.0.tgz");
-      NestedAttributesMap v3 = NpmMetadataUtils.selectVersionByTarballName(packageRoot, "package-3.0.tgz");
+    NestedAttributesMap v1 = NpmMetadataUtils.selectVersionByTarballName(packageRoot, "package-1.0.tgz");
+    NestedAttributesMap v2 = NpmMetadataUtils.selectVersionByTarballName(packageRoot, "package-2.0.tgz");
+    NestedAttributesMap v3 = NpmMetadataUtils.selectVersionByTarballName(packageRoot, "package-3.0.tgz");
 
-      assertThat(v1.child("dist").get("tarball"), equalTo("http://example.com/path/package-1.0.tgz"));
-      assertThat(v2.child("dist").get("tarball"), equalTo("http://example.com/path/package-2.0.tgz"));
-      assertThat(v3, nullValue());
+    assertThat(v1.child("dist").get("tarball"), equalTo("http://example.com/path/package-1.0.tgz"));
+    assertThat(v2.child("dist").get("tarball"), equalTo("http://example.com/path/package-2.0.tgz"));
+    assertThat(v3, nullValue());
   }
 
   @Test
@@ -234,7 +247,8 @@ public class NpmMetadataUtilsTest
       packageRoot.set("name", "package");
       packageRoot.child("versions").child("1.0").set("name", "package");
       packageRoot.child("versions").child("1.0").set("version", "1.0");
-      packageRoot.child("versions").child("1.0").child("dist").set("tarball", "http://example.com/path/package-1.0.tgz");
+      packageRoot.child("versions").child("1.0").child("dist")
+          .set("tarball", "http://example.com/path/package-1.0.tgz");
       packageRoot.child("versions").set("2.0", "incomplete");
 
       NpmMetadataUtils.rewriteTarballUrl("testRepo", packageRoot);

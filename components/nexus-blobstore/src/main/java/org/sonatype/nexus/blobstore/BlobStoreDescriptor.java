@@ -44,7 +44,7 @@ public interface BlobStoreDescriptor
    * @since 3.14
    */
   default boolean isModifiable() {
-    return false;
+    return true;
   }
 
   /**
@@ -53,6 +53,14 @@ public interface BlobStoreDescriptor
    * @since 3.14
    */
   default void validateConfig(BlobStoreConfiguration config) {
+  }
+
+  /**
+   * Modifies the config to ensure the input is valid
+   *
+   * @since 3.next
+   */
+  default void sanitizeConfig(BlobStoreConfiguration config) {
   }
 
   /**

@@ -12,25 +12,21 @@
  */
 package org.sonatype.nexus.security.authc;
 
-import javax.servlet.http.Cookie;
+import java.io.IOException;
+import java.io.PrintWriter;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.HttpMethod;
 
 import org.sonatype.goodies.testsupport.TestSupport;
 
-import com.google.common.net.HttpHeaders;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.startsWith;
-import static org.mockito.Mockito.never;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class AntiCsrfFilterTest
@@ -39,112 +35,46 @@ public class AntiCsrfFilterTest
   private AntiCsrfFilter underTest;
 
   @Mock
+  private AntiCsrfHelper antiCrsfHelper;
+
+  @Mock
+  private PrintWriter printWriter;
+
+  @Mock
   HttpServletRequest httpServletRequest;
 
   @Mock
   HttpServletResponse httpServletResponse;
 
   @Before
-  public void setup() {
-    underTest = new AntiCsrfFilter(true);
+  public void setup() throws IOException {
+    underTest = new AntiCsrfFilter(antiCrsfHelper);
+    when(httpServletResponse.getWriter()).thenReturn(printWriter);
   }
 
   @Test
-  public void testDisabledFilter() {
-    underTest = new AntiCsrfFilter(false);
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(true));
-    verifyZeroInteractions(httpServletRequest);
-    verifyZeroInteractions(httpServletResponse);
+  public void testOnAccessDenied() throws IOException {
+    assertFalse(underTest.onAccessDenied(httpServletRequest, httpServletResponse));
+    verify(httpServletResponse).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    verify(httpServletResponse).setContentType("text/plain");
+    verify(printWriter).print(AntiCsrfHelper.ERROR_MESSAGE_TOKEN_MISMATCH);
   }
 
   @Test
-  public void testCsrfUnwarrantedRequest_ignoredUserAgent() {
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("notabrowser");
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(true));
-    verifyZeroInteractions(httpServletResponse);
+  public void testIsEnabled() {
+    when(antiCrsfHelper.isEnabled()).thenReturn(true);
+    assertTrue(underTest.isEnabled());
+
+    when(antiCrsfHelper.isEnabled()).thenReturn(false);
+    assertFalse(underTest.isEnabled());
   }
 
   @Test
-  public void testCsrfCookieCreatedWhenNotAvailableInRequest() {
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/something");
-    when(httpServletRequest.getMethod()).thenReturn(HttpMethod.POST);
-    when(httpServletRequest.getHeader(HttpHeaders.REFERER)).thenReturn("referrer");
-    when(httpServletRequest.getContextPath()).thenReturn("something");
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(false));
-    verify(httpServletResponse).addHeader(eq("Set-Cookie"), startsWith("NX-ANTI-CSRF-TOKEN"));
-  }
+  public void testIsAccessAllowed() {
+    when(antiCrsfHelper.isAccessAllowed(httpServletRequest)).thenReturn(true);
+    assertTrue(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null));
 
-  @Test
-  public void testCsrfCookieNotCreatedWhenAvailableInRequest() {
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/something");
-    when(httpServletRequest.getMethod()).thenReturn(HttpMethod.POST);
-    when(httpServletRequest.getHeader(HttpHeaders.REFERER)).thenReturn("referrer");
-    when(httpServletRequest.getContextPath()).thenReturn("something");
-    when(httpServletRequest.getCookies()).thenReturn(new Cookie[]{new Cookie("NX-ANTI-CSRF-TOKEN", "avalue")});
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(false));
-    verify(httpServletResponse, never()).addHeader(eq("Set-Cookie"), startsWith("NX-ANTI-CSRF-TOKEN"));
-  }
-
-  @Test
-  public void testCookieCreatedAndCsrfCheckSkippedForFormPost() {
-    //csrf check is skipped as it is done in the directnjine code
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/something");
-    when(httpServletRequest.getMethod()).thenReturn(HttpMethod.POST);
-    when(httpServletRequest.getHeader(HttpHeaders.REFERER)).thenReturn("referrer");
-    when(httpServletRequest.getContextPath()).thenReturn("something");
-    when(httpServletRequest.getContentType()).thenReturn("multipart/form-data");
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(true));
-    verify(httpServletResponse).addHeader(eq("Set-Cookie"), startsWith("NX-ANTI-CSRF-TOKEN"));
-  }
-
-  @Test
-  public void testCookieCreatedAndCsrfCheckSkippedForGetMethod() {
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/something");
-    when(httpServletRequest.getMethod()).thenReturn(HttpMethod.GET);
-    when(httpServletRequest.getHeader(HttpHeaders.REFERER)).thenReturn("referrer");
-    when(httpServletRequest.getContextPath()).thenReturn("something");
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(true));
-    verify(httpServletResponse).addHeader(eq("Set-Cookie"), startsWith("NX-ANTI-CSRF-TOKEN"));
-  }
-
-  @Test
-  public void testCookieCreatedAndCsrfCheckSkippedForHeadMethod() {
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/something");
-    when(httpServletRequest.getMethod()).thenReturn(HttpMethod.HEAD);
-    when(httpServletRequest.getHeader(HttpHeaders.REFERER)).thenReturn("referrer");
-    when(httpServletRequest.getContextPath()).thenReturn("something");
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(true));
-    verify(httpServletResponse).addHeader(eq("Set-Cookie"), startsWith("NX-ANTI-CSRF-TOKEN"));
-  }
-
-  @Test
-  public void testCookieCreatedAndCsrfCheckSkippedForMissingSessionAndReferrer() {
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/something");
-    when(httpServletRequest.getMethod()).thenReturn(HttpMethod.POST);
-    when(httpServletRequest.getContextPath()).thenReturn("something");
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(true));
-    verify(httpServletResponse).addHeader(eq("Set-Cookie"), startsWith("NX-ANTI-CSRF-TOKEN"));
-  }
-
-  @Test
-  public void testCookieCreatedAndCsrfCheckPerformedButFails() {
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/something");
-    when(httpServletRequest.getMethod()).thenReturn(HttpMethod.POST);
-    when(httpServletRequest.getContextPath()).thenReturn("something");
-    when(httpServletRequest.getHeader(HttpHeaders.REFERER)).thenReturn("referrer");
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(false));
-    verify(httpServletResponse).addHeader(eq("Set-Cookie"), startsWith("NX-ANTI-CSRF-TOKEN"));
-  }
-
-  @Test
-  public void testCookieNotCreatedAndCsrfCheckPerformedAndPassesWithExistingCookie() {
-    when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/something");
-    when(httpServletRequest.getHeader("NX-ANTI-CSRF-TOKEN")).thenReturn("avalue");
-    when(httpServletRequest.getMethod()).thenReturn(HttpMethod.POST);
-    when(httpServletRequest.getContextPath()).thenReturn("something");
-    when(httpServletRequest.getHeader(HttpHeaders.REFERER)).thenReturn("referrer");
-    when(httpServletRequest.getCookies()).thenReturn(new Cookie[]{new Cookie("NX-ANTI-CSRF-TOKEN", "avalue")});
-    assertThat(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null), is(true));
-    verify(httpServletResponse, never()).addHeader(eq("Set-Cookie"), startsWith("NX-ANTI-CSRF-TOKEN"));
+    when(antiCrsfHelper.isAccessAllowed(httpServletRequest)).thenReturn(false);
+    assertFalse(underTest.isAccessAllowed(httpServletRequest, httpServletResponse, null));
   }
 }

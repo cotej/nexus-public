@@ -21,6 +21,7 @@ import org.sonatype.nexus.repository.Type
 import org.sonatype.nexus.repository.attributes.AttributesFacet
 import org.sonatype.nexus.repository.http.PartialFetchHandler
 import org.sonatype.nexus.repository.pypi.PyPiFacet
+import org.sonatype.nexus.repository.routing.RoutingRuleHandler
 import org.sonatype.nexus.repository.search.SearchFacet
 import org.sonatype.nexus.repository.security.SecurityHandler
 import org.sonatype.nexus.repository.storage.StorageFacet
@@ -32,8 +33,10 @@ import org.sonatype.nexus.repository.view.handlers.ConditionalRequestHandler
 import org.sonatype.nexus.repository.view.handlers.ContentHeadersHandler
 import org.sonatype.nexus.repository.view.handlers.ExceptionHandler
 import org.sonatype.nexus.repository.view.handlers.HandlerContributor
+import org.sonatype.nexus.repository.view.handlers.LastDownloadedHandler
 import org.sonatype.nexus.repository.view.handlers.TimingHandler
 import org.sonatype.nexus.repository.view.matchers.ActionMatcher
+import org.sonatype.nexus.repository.view.matchers.RegexMatcher
 import org.sonatype.nexus.repository.view.matchers.logic.LogicMatchers
 import org.sonatype.nexus.repository.view.matchers.token.TokenMatcher
 
@@ -71,6 +74,9 @@ abstract class PyPiRecipeSupport
   TimingHandler timingHandler
 
   @Inject
+  RoutingRuleHandler routingHandler
+
+  @Inject
   SecurityHandler securityHandler
 
   @Inject
@@ -87,6 +93,9 @@ abstract class PyPiRecipeSupport
 
   @Inject
   HandlerContributor handlerContributor
+  
+  @Inject
+  LastDownloadedHandler lastDownloadedHandler
 
   @Inject
   Provider<PyPiFacet> pyPiFacet
@@ -110,7 +119,21 @@ abstract class PyPiRecipeSupport
     new Builder().matcher(
         LogicMatchers.and(
             new ActionMatcher(GET, HEAD),
-            new TokenMatcher('/simple/{name}/')
+            LogicMatchers.or(
+                new TokenMatcher('/simple/{name}'),
+                new TokenMatcher('/simple/{name}/')
+            )
+        ))
+  }
+
+  /**
+   * Matcher for index mapping.
+   */
+  static Builder rootIndexMatcher() {
+    new Builder().matcher(
+        LogicMatchers.and(
+            new ActionMatcher(GET, HEAD),
+            new TokenMatcher('/simple/')
         ))
   }
 
@@ -121,7 +144,7 @@ abstract class PyPiRecipeSupport
     new Builder().matcher(
         LogicMatchers.and(
             new ActionMatcher(GET, HEAD),
-            new TokenMatcher('/packages/{path:.+}')
+            new TokenMatcher('/{path:.+}')
         ))
   }
 

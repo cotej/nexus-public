@@ -130,6 +130,7 @@ Ext.define('NX.coreui.view.ldap.LdapServerConnectionFieldSet', {
           if (form.down('#protocol').getValue() === 'ldaps' && form.down('#host').getValue() && field.getValue()) {
             return {
               name: 'useTrustStore',
+              value: form.getRecord() ? form.getRecord().getData().useTrustStore : false,
               host: form.down('#host'),
               port: form.down('#port')
             };

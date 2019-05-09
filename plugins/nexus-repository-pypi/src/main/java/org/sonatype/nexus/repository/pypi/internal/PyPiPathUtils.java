@@ -80,7 +80,9 @@ public final class PyPiPathUtils
    * Builds a path to a package for a particular path.
    */
   static String packagesPath(final String... parts) {
-    return PACKAGE_PATH_PREFIX + String.join("/", parts);
+    String pkg = String.join("/", parts);
+
+    return pkg.startsWith("packages/") ? pkg : PACKAGE_PATH_PREFIX + pkg;
   }
 
   /**
@@ -99,11 +101,21 @@ public final class PyPiPathUtils
 
   /**
    * @param path for an asset
+   * @return {@code true} if the {@code path} represents the root index
+   *
+   * @since 3.15
+   */
+  public static boolean isRootIndexPath(final String path) {
+    return path.equals(INDEX_PATH_PREFIX);
+  }
+
+  /**
+   * @param path for an asset
    * @return {@code true} if the {@code path} represents an index
    *
    * @since 3.14
    */
-  static boolean isIndexPath(final String path) {
+  public static boolean isIndexPath(final String path) {
     return path.startsWith(INDEX_PATH_PREFIX);
   }
 

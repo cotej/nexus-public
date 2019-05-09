@@ -22,20 +22,29 @@ Ext.define('NX.coreui.view.support.SupportZip', {
   alias: 'widget.nx-coreui-support-supportzip',
   requires: [
     'NX.Conditions',
-    'NX.I18n'
+    'NX.I18n',
+    'NX.State'
   ],
+  listeners: {
+    afterrender: function () {
+      if (!NX.State.isClustered()) {
+        this.query('button[action=hazips]')[0].setVisible(false);
+      }
+    }
+  },
 
   /**
    * @override
    */
   initComponent: function () {
-    var me = this;
+    var me = this,
+        uiSettings = NX.State.getValue('uiSettings', {});
 
     me.settingsForm = {
       xtype: 'nx-settingsform',
       settingsFormSubmitMessage: NX.I18n.get('Support_SupportZip_Creating_Message'),
       settingsFormSuccessMessage: NX.I18n.get('Support_SupportZip_Create_Success'),
-      timeout: 60 * 3, // 3 minutes
+      timeout: uiSettings['longRequestTimeout'],
       isDirty: function() { return false; }, // form is never saved, so never dirty
       api: {
         submit: 'NX.direct.atlas_SupportZip.create'
@@ -91,6 +100,12 @@ Ext.define('NX.coreui.view.support.SupportZip', {
             },
             {
               xtype: 'checkbox',
+              name: 'auditLog',
+              boxLabel: NX.I18n.get('Support_SupportZip_AuditLogFiles_BoxLabel'),
+              checked: true
+            },
+            {
+              xtype: 'checkbox',
               name: 'metrics',
               boxLabel: NX.I18n.get('Support_SupportZip_Metrics_BoxLabel'),
               checked: true
@@ -134,6 +149,14 @@ Ext.define('NX.coreui.view.support.SupportZip', {
           glyph: 'xf019@FontAwesome' /* fa-download */,
           action: 'submit',
           ui: 'nx-primary'
+        },
+        {
+          text: NX.I18n.get('Support_HA_SupportZip_Create_Button'),
+          formBind: true,
+          glyph: 'xf019@FontAwesome' /* fa-download */,
+          action: 'hazips',
+          ui: 'nx-primary',
+          disabled: !NX.State.isClustered()
         }
       ]
     };

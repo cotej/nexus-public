@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -66,7 +67,10 @@ import com.orientechnologies.orient.server.network.protocol.http.ONetworkProtoco
 import com.orientechnologies.orient.server.network.protocol.http.command.get.OServerCommandGetStaticContent;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
+import static java.util.function.Function.identity;
 import static org.sonatype.nexus.common.stateguard.StateGuardLifecycleSupport.State.STARTED;
+import static org.sonatype.nexus.orient.DatabaseInstanceNames.DATABASE_NAMES;
 
 /**
  * Default {@link DatabaseServer} implementation.
@@ -87,6 +91,8 @@ public class DatabaseServerImpl
   private static final String ORIENTDB_LOGGER = ORIENTDB_PARENT_LOGGER + ".orientechnologies";
 
   private final ApplicationDirectories applicationDirectories;
+
+  private final File databasesDir;
 
   private final List<OServerHandlerConfiguration> injectedHandlers;
 
@@ -138,6 +144,8 @@ public class DatabaseServerImpl
       this.binaryListenerEnabled = binaryListenerEnabled;
     }
 
+    databasesDir = applicationDirectories.getWorkDirectory("db");
+
     log.info("OrientDB version: {}", OConstants.getVersion());
   }
 
@@ -155,11 +163,19 @@ public class DatabaseServerImpl
 
   @Override
   protected void doStart() throws Exception {
+
     // global startup
     Orient.instance().startup();
 
     // instance startup
-    OServer server = new OServer();
+    OServer server = new OServer(false)
+    {
+      @Override
+      public Map<String, String> getAvailableStorageNames() {
+        return getExistingDatabaseUrls();
+      }
+    };
+
     configureOrientMinimumLogLevel();
     server.setExtensionClassLoader(uberClassLoader);
     OServerConfiguration config = createConfiguration();
@@ -189,6 +205,24 @@ public class DatabaseServerImpl
     this.orientServer = server;
   }
 
+  private Map<String, String> getExistingDatabaseUrls() {
+    return DATABASE_NAMES.stream()
+        .filter(this::databaseExists)
+        .collect(toImmutableMap(identity(), this::resolveDatabaseUrl));
+  }
+
+  private boolean databaseExists(String name) {
+    return new File(resolveDatabaseDir(name), "database.ocf").exists();
+  }
+
+  private String resolveDatabaseUrl(String name) {
+    return "plocal:" + resolveDatabaseDir(name).getAbsolutePath();
+  }
+
+  private File resolveDatabaseDir(String name) {
+    return new File(databasesDir, name);
+  }
+
   private OServerConfiguration createConfiguration() {
     File configDir = applicationDirectories.getConfigDirectory("fabric");
 
@@ -202,11 +236,10 @@ public class DatabaseServerImpl
     // FIXME: Unsure what this is used for, its apparently assigned to xml location, but forcing it here
     config.location = "DYNAMIC-CONFIGURATION";
 
-    File databaseDir = applicationDirectories.getWorkDirectory("db");
     File securityFile = new File(configDir, "orientdb-security.json");
 
     config.properties = new OServerEntryConfiguration[]{
-        new OServerEntryConfiguration("server.database.path", databaseDir.getPath()),
+        new OServerEntryConfiguration("server.database.path", databasesDir.getPath()),
         new OServerEntryConfiguration("server.security.file", securityFile.getPath()),
         new OServerEntryConfiguration("plugin.dynamic", String.valueOf(dynamicPlugins))
     };
@@ -306,12 +339,15 @@ public class DatabaseServerImpl
 
   @Override
   protected void doStop() throws Exception {
-    // instance shutdown
-    orientServer.shutdown();
-    orientServer = null;
-
-    // global shutdown
-    Orient.instance().shutdown();
+    try {
+      // instance shutdown
+      orientServer.shutdown();
+      orientServer = null;
+    }
+    finally {
+      // global shutdown
+      Orient.instance().shutdown();
+    }
 
     log.info("Shutdown");
   }
@@ -319,7 +355,7 @@ public class DatabaseServerImpl
   @Override
   @Guarded(by = STARTED)
   public List<String> databases() {
-    return ImmutableList.copyOf(orientServer.getAvailableStorageNames().keySet());
+    return ImmutableList.copyOf(getExistingDatabaseUrls().keySet());
   }
 
   @Guarded(by = STARTED)

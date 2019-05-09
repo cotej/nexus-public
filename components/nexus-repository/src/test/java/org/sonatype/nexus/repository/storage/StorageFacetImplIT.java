@@ -34,7 +34,6 @@ import org.sonatype.nexus.repository.Repository;
 import org.sonatype.nexus.repository.attributes.internal.AttributesFacetImpl;
 import org.sonatype.nexus.repository.config.Configuration;
 import org.sonatype.nexus.repository.config.ConfigurationFacet;
-import org.sonatype.nexus.repository.internal.blobstore.BlobStoreConfigurationStore;
 import org.sonatype.nexus.repository.search.SearchFacet;
 import org.sonatype.nexus.repository.storage.internal.ComponentSchemaRegistration;
 import org.sonatype.nexus.security.ClientInfoProvider;
@@ -60,6 +59,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.joda.time.Duration.standardHours;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -783,7 +783,7 @@ public class StorageFacetImplIT
       Asset asset = tx.findAssetWithProperty(P_NAME, ASSET_NAME, bucket);
       assertThat(asset, notNullValue());
       assertThat(asset.lastDownloaded(), nullValue());
-      assertThat(asset.markAsDownloaded(), is(true));
+      assertThat(asset.markAsDownloaded(standardHours(12)), is(true));
       tx.saveAsset(asset);
       tx.commit();
     }
@@ -793,7 +793,7 @@ public class StorageFacetImplIT
       Asset asset = tx.findAssetWithProperty(P_NAME, ASSET_NAME, bucket);
       assertThat(asset, notNullValue());
       assertThat(asset.lastDownloaded(), notNullValue());
-      assertThat(asset.markAsDownloaded(), is(false));
+      assertThat(asset.markAsDownloaded(standardHours(12)), is(false));
     }
   }
 
@@ -844,7 +844,6 @@ public class StorageFacetImplIT
     NodeAccess mockNodeAccess = mock(NodeAccess.class);
     when(mockNodeAccess.getId()).thenReturn(nodeId);
     BlobStoreManager mockBlobStoreManager = mock(BlobStoreManager.class);
-    BlobStoreConfigurationStore mockBlobStoreConfigurationStore = mock(BlobStoreConfigurationStore.class);
     when(mockBlobStoreManager.get(anyString())).thenReturn(mock(BlobStore.class));
     ContentValidatorSelector contentValidatorSelector =
         new ContentValidatorSelector(Collections.emptyMap(), new DefaultContentValidator(new DefaultMimeSupport()));
@@ -854,7 +853,6 @@ public class StorageFacetImplIT
     StorageFacetImpl storageFacetImpl = new StorageFacetImpl(
         mockNodeAccess,
         mockBlobStoreManager,
-        mockBlobStoreConfigurationStore,
         database.getInstanceProvider(),
         bucketEntityAdapter,
         componentEntityAdapter,

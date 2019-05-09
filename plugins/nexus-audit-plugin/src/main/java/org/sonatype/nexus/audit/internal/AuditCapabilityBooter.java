@@ -30,6 +30,6 @@ public class AuditCapabilityBooter
 {
   @Override
   protected void boot(final CapabilityRegistry registry) throws Exception {
-    maybeAddCapability(registry, AuditCapability.TYPE, false, null, null);
+    maybeAddCapability(registry, AuditCapability.TYPE, true, null, null);
   }
 }
