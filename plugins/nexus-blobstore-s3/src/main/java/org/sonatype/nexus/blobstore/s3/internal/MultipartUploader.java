@@ -15,10 +15,7 @@ package org.sonatype.nexus.blobstore.s3.internal;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -50,10 +47,14 @@ public class MultipartUploader
 {
 
   private final int chunkSize;
+  private final int concurrentChunks;
 
   @Inject
-  public MultipartUploader(@Named("${nexus.s3.multipartupload.chunksize:-5242880}") final int chunkSize) {
+  public MultipartUploader(
+      @Named("${nexus.s3.multipartupload.chunksize:-5242880}") final int chunkSize,
+      @Named("${nexus.s3.multipartupload.concurrency:-5}") final int concurrentChunks) {
     this.chunkSize = chunkSize;
+    this.concurrentChunks = concurrentChunks;
   }
 
   @Override
@@ -94,9 +95,8 @@ public class MultipartUploader
 
       log.debug("Starting multipart upload {} to key {} in bucket {}", uploadId, key, bucket);
 
-      List<CompletableFuture<UploadPartResult>> uploads = new ArrayList<>();
-      AtomicReference<Exception> error = new AtomicReference<>();
-      for (int partNumber = 1; error.get() == null; partNumber++) {
+      MultipartUploadContext context = new MultipartUploadContext(s3, uploadId, concurrentChunks);
+      for (int partNumber = 1; !context.hasError(); partNumber++) {
         InputStream chunk = partNumber == 1 ? firstChunk : readChunk(restOfContents);
         if (chunk.available() == 0) {
           break;
@@ -110,29 +110,10 @@ public class MultipartUploader
               .withPartNumber(partNumber)
               .withInputStream(chunk)
               .withPartSize(chunk.available());
-          uploads.add(CompletableFuture.supplyAsync(() -> {
-            if (error.get() == null) {
-              try {
-                return s3.uploadPart(part);
-              } catch (Exception e) {
-                error.set(e);
-              }
-            }
-            return null;
-          }));
+          context.uploadPartAsync(part);
         }
       }
-
-      // Await and collect the upload results
-      List<UploadPartResult> results = new ArrayList<>();
-      for (CompletableFuture<UploadPartResult> upload : uploads) {
-        results.add(upload.join());
-      }
-      // Check error state after allowing all queued uploads to finish
-      if (error.get() != null) {
-        throw new IOException("Upload failed", error.get());
-      }
-
+      List<UploadPartResult> results = context.getUploadResults();
       CompleteMultipartUploadRequest compRequest = new CompleteMultipartUploadRequest()
           .withBucketName(bucket)
           .withKey(key)
