@@ -31,7 +31,7 @@ class MultipartUploaderTest
 
   def 'upload uploads with the multipart api'() {
     given: 'A multipart uploader'
-      MultipartUploader multipartUploader = new MultipartUploader(100)
+      MultipartUploader multipartUploader = new MultipartUploader(100, 2)
       AmazonS3 s3 = Mock()
 
     when: 'an upload is started'
@@ -47,7 +47,7 @@ class MultipartUploaderTest
 
   def 'upload aborts multipart uploads on error'() {
     given: 'A multipart uploader'
-      MultipartUploader multipartUploader = new MultipartUploader(100)
+      MultipartUploader multipartUploader = new MultipartUploader(100, 2)
       AmazonS3 s3 = Mock()
 
     when: 'an upload is started'
@@ -63,7 +63,7 @@ class MultipartUploaderTest
 
   def 'readChunk reads streams in chunks'() {
     given: 'A multipart uploader with a custom chunk size'
-      MultipartUploader multipartUploader = new MultipartUploader(100)
+      MultipartUploader multipartUploader = new MultipartUploader(100, 2)
 
     when: 'an input stream of a given size is read'
       def input = new ByteArrayInputStream(new byte[inputSize])
@@ -90,7 +90,7 @@ class MultipartUploaderTest
 
   def 'upload uses putObject for small uploads'() {
     given: 'A multipart uploader'
-      MultipartUploader multipartUploader = new MultipartUploader(100)
+      MultipartUploader multipartUploader = new MultipartUploader(100, 2)
       AmazonS3 s3 = Mock()
 
     when: 'an upload is started'
